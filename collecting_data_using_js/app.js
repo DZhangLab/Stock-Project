@@ -19,15 +19,15 @@ app.use(express.static("public"));
 
 
 const con = mysql.createConnection({
-  host: "127.0.0.1",
-  user: "root",
-  password: "root",
+  host: "stockproject.c41k9xcwi5rs.us-east-1.rds.amazonaws.com",
+  user: "insertclose",
+  password: "harryzhao",
   database: "stock"
 });
-let test = 220;
+let test =0;
 cron.schedule('*/9 * * * * *', () => {
-  console.log('Hello World');
-  console.log("check");
+  //console.log('Hello World');
+  //console.log("check");
   if (test < 500) {
     console.log(myfunction(test++));
   } else {
@@ -44,9 +44,9 @@ cron.schedule('*/9 * * * * *', () => {
 
 function myfunction(position) {
 
-  const url1 = "https://api.twelvedata.com/quote?symbol=" + symbolList[position] + "&apikey=" + process.env.TWELVE;
+  const url1 = "https://api.twelvedata.com/quote?symbol=" + symbolList[position] + "&apikey=" + process.env.TWELVES;
   //console.log("check point" + position);
-  console.log(url1);
+  //console.log(url1);
   //console.log("check");
   https.get(url1, function(response) {
     //console.log(response);
@@ -367,7 +367,7 @@ app.get("/", function(req, res) {
   res.send("done");
 })
 //https://api.twelvedata.com/quote?symbol=AAPL&apikey=your_api_key
-app.listen(3000, function() {
+app.listen(4000, function() {
   console.log("started");
 })
 //
