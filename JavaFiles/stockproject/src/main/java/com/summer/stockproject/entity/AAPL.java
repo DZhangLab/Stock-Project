@@ -1,10 +1,12 @@
 package com.summer.stockproject.entity;
 
 import javax.persistence.*;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.sql.Date;
 
 @Entity
-@Table(name="test")
+@Table(name="amazon")
 public class AAPL {
 
     @Id
@@ -12,8 +14,9 @@ public class AAPL {
     @Column(name="id")
     private int id;
 
-    @Column(name="time_point")
-    private LocalDateTime timePoint;
+    @Column(name="time_point", columnDefinition ="DATETIME")
+    //@Temporal(TemporalType.TIMESTAMP)
+    private Timestamp timePoint;
 
     @Column(name="minute_open")
     private double minuteOpen;
@@ -34,7 +37,7 @@ public class AAPL {
 
     }
 
-    public AAPL(int id, LocalDateTime timePoint, double minuteOpen, double minuteHigh, double minuteLow, double intminuteClose, int minuteVolume) {
+    public AAPL(int id, Timestamp timePoint, double minuteOpen, double minuteHigh, double minuteLow, double intminuteClose, int minuteVolume) {
         this.id = id;
         this.timePoint = timePoint;
         this.minuteOpen = minuteOpen;
@@ -52,11 +55,11 @@ public class AAPL {
         this.id = id;
     }
 
-    public LocalDateTime getTimePoint() {
+    public Timestamp getTimePoint() {
         return timePoint;
     }
 
-    public void setTimePoint(LocalDateTime timePoint) {
+    public void setTimePoint(Timestamp timePoint) {
         this.timePoint = timePoint;
     }
 
