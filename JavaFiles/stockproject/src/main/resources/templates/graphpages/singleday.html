@@ -1,9 +1,10 @@
-
 <!DOCTYPE html>
+<html lang="en">
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
+
 <head>
     <meta charset="UTF-8">
-    <title>graph</title>
+    <title>single</title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
 
     <link rel="stylesheet" href="https://cdn.metroui.org.ua/v4/css/metro-all.min.css">
@@ -13,29 +14,35 @@
 
 </head>
 <body>
-<div class="container">
-    hello world
-    <a th:href="@{/}">back</a>
 
-    <!--<input data-role="datepicker">-->
-    <!--<div type="text" data-role="datepicker" data-on-set="myFunction"></div>-->
-    <input type="text" data-role="calendarpicker" data-on-day-click="myFunction">
-    <button type="button" th:onclick="showAlert()">Show Alert</button>
-<!--    <div>-->
-<!--        <canvas id="myChart" width="300" height="300"></canvas>-->
-<!--    </div>-->
+<a th:href="@{/}"> return to home</a>
 
+<h1>this is the signle page</h1>
+<!-- th:action="@{/single-stock/single" th:object="${inputDate}"-->
+<form action="#"   th:action="@{/single-stock/single}" th:object="${inputDate}" method="POST">
+    <h3>year</h3>
+    <input type="number" >
+    <br>
+    <h3>month</h3>
+    <input type="number" >
+    <br>
+    <h3>day</h3>
+    <input type="number" th:field="*{day}" >
+    <br>
+    <h3>hour</h3>
+    <input type="number" >
+    <br>
+    <h3>minute</h3>
+    <input type="number" >
 
-    <div id="chartContainer" style="height: 370px; width: 100%;"></div>
+    <br>
+<button type="submit" class="btn btn-primary"> save</button>
 
-</div>
+</form>
+2022-6-30 9:30:00
+
+<!--passing the value to js file-->
 <script th:inline="javascript">
-<!--    <c:forEach  items="${apple}" var="apl" varStatus="loop">-->
-<!--    console.log(apl);-->
-
-<!--    </c:forEach>-->
-
-
 var apple = [[${apple}]];
 var timepoint = [[${timepoint}]];
 </script>
@@ -43,6 +50,5 @@ var timepoint = [[${timepoint}]];
 <script type="text/javascript" src="https://canvasjs.com/assets/script/canvasjs.stock.min.js"></script>
 
 <script src="https://cdn.metroui.org.ua/v4/js/metro.min.js"></script>
-
 </body>
 </html>

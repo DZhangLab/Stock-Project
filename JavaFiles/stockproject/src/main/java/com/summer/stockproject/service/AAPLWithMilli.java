@@ -40,4 +40,9 @@ public class AAPLWithMilli implements AAPLService{
 
         return null;
     }
+
+    @Override
+    public List<AAPL> findBySingleDate(Timestamp date) {
+        return null;
+    }
 }

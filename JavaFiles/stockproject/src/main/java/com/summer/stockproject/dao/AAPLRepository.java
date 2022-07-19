@@ -16,5 +16,8 @@ public interface AAPLRepository extends JpaRepository<AAPL, Integer> {
     @Query("select u from AAPL u where u.timePoint > ?1 and u.timePoint < ?2")
     List<AAPL> findByStartDateBetween(Timestamp start, Timestamp end);
 
+    @Query("select u from AAPL u where u.timePoint = ?1 ")
+    List<AAPL> findBySingleDate(Timestamp date);
+
 
 }

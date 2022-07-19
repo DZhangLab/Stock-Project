@@ -48,5 +48,10 @@ public class AAPLServiceImpl implements AAPLService {
         return aAPLRepository.findByStartDateBetween(start,end);
     }
 
+    @Override
+    public List<AAPL> findBySingleDate(Timestamp date) {
+        return aAPLRepository.findBySingleDate(date);
+    }
+
 
 }

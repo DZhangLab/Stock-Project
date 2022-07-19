@@ -14,4 +14,6 @@ public interface AAPLService {
     public AAPL getById(int theid);
 
     List<AAPL> findByStartDateBetween(Timestamp start, Timestamp end);
+
+    List<AAPL> findBySingleDate(Timestamp date);
 }
