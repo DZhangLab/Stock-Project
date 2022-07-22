@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <title>single</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
+    <link rel="stylesheet" href="https://cdn.metroui.org.ua/v4/css/metro-all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.4.0/Chart.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script type="text/javascript" th:src="@{/jsFile/getdata.js}" ></script>
+
+</head>
+<body>
+
+<a th:href="@{/}"> return to home</a>
+
+<h1>this is the signle page</h1>
+<!-- th:action="@{/single-stock/single" th:object="${inputDate}"-->
+<form action="#"   th:action="@{/single-stock/single}" th:object="${inputDate}" method="POST">
+    <h3>year</h3>
+    <input type="number" >
+    <br>
+    <h3>month</h3>
+    <input type="number" >
+    <br>
+    <h3>day</h3>
+    <input type="number" th:field="*{day}" >
+    <br>
+    <h3>hour</h3>
+    <input type="number" >
+    <br>
+    <h3>minute</h3>
+    <input type="number" >
+
+    <br>
+<button type="submit" class="btn btn-primary"> save</button>
+
+</form>
+2022-6-30 9:30:00
+
+<!--passing the value to js file-->
+<script th:inline="javascript">
+var apple = [[${apple}]];
+var timepoint = [[${timepoint}]];
+</script>
+<script type="text/javascript"  src="https://canvasjs.com/assets/script/jquery-1.11.1.min.js"></script>
+<script type="text/javascript" src="https://canvasjs.com/assets/script/canvasjs.stock.min.js"></script>
+
+<script src="https://cdn.metroui.org.ua/v4/js/metro.min.js"></script>
+</body>
+</html>

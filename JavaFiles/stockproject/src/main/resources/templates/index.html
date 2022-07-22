@@ -1,0 +1,32 @@
+
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
+    <link rel="stylesheet" href="https://cdn.metroui.org.ua/v4/css/metro-all.min.css">
+    <script type="text/javascript" th:src="@{/jsFile/getdata.js}" ></script>
+
+</head>
+<body>
+<div class="container">
+    hello world
+
+    <a th:href="@{single-stock/aapl}">link to multiple</a>
+    <a th:href="@{single-stock/single}">single</a>
+    <a th:href="@{single-stock/test}">test</a>
+    <a th:href="@{test/timestamp}">timestamp</a>
+
+    <h1>This is the home page</h1>
+    <!--<input data-role="datepicker">-->
+    <!--<div type="text" data-role="datepicker" data-on-set="myFunction"></div>-->
+
+
+</div>
+
+
+<script src="https://cdn.metroui.org.ua/v4/js/metro.min.js"></script>
+</body>
+</html>

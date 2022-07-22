@@ -1,0 +1,48 @@
+
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>graph</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
+    <link rel="stylesheet" href="https://cdn.metroui.org.ua/v4/css/metro-all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.4.0/Chart.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script type="text/javascript" th:src="@{/jsFile/getdata.js}" ></script>
+
+</head>
+<body>
+<div class="container">
+    hello world
+    <a th:href="@{/}">back</a>
+
+    <!--<input data-role="datepicker">-->
+    <!--<div type="text" data-role="datepicker" data-on-set="myFunction"></div>-->
+    <input type="text" data-role="calendarpicker" data-on-day-click="myFunction">
+    <button type="button" th:onclick="showAlert()">Show Alert</button>
+<!--    <div>-->
+<!--        <canvas id="myChart" width="300" height="300"></canvas>-->
+<!--    </div>-->
+
+
+    <div id="chartContainer" style="height: 370px; width: 100%;"></div>
+
+</div>
+<script th:inline="javascript">
+<!--    <c:forEach  items="${apple}" var="apl" varStatus="loop">-->
+<!--    console.log(apl);-->
+
+<!--    </c:forEach>-->
+
+
+var apple = [[${apple}]];
+var timepoint = [[${timepoint}]];
+</script>
+<script type="text/javascript"  src="https://canvasjs.com/assets/script/jquery-1.11.1.min.js"></script>
+<script type="text/javascript" src="https://canvasjs.com/assets/script/canvasjs.stock.min.js"></script>
+
+<script src="https://cdn.metroui.org.ua/v4/js/metro.min.js"></script>
+
+</body>
+</html>

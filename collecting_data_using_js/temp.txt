@@ -1,0 +1,7 @@
+https://api.twelvedata.com/time_series?symbol=AMZN&interval=1min&start_date=2022-7-1 09:30:00&end_date=2022-07-1 16:00:00&apikey=e901a2d4d8f94d4e8f6ee5b8aef4317d
+
+
+
+&start_date=2022-07-01 15:59:00&end_date=2022-07-20 09:30:00&
+
+https://api.twelvedata.com/time_series?symbol=AMZN&interval=1min&start_date=2022-6-2009:30:00&end_date=2022-7-1 15:59:00&apikey=c37abf271a5a4568b30ecceab80313b7
