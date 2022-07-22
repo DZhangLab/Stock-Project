@@ -45,4 +45,9 @@ public class AAPLWithMilli implements AAPLService{
     public List<AAPL> findBySingleDate(Timestamp date) {
         return null;
     }
+
+    @Override
+    public List<AAPL> universalfind(String tablename, Timestamp date) {
+        return null;
+    }
 }

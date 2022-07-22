@@ -16,4 +16,6 @@ public interface AAPLService {
     List<AAPL> findByStartDateBetween(Timestamp start, Timestamp end);
 
     List<AAPL> findBySingleDate(Timestamp date);
+
+    List<AAPL> universalfind(String tablename, Timestamp date);
 }

@@ -19,5 +19,6 @@ public interface AAPLRepository extends JpaRepository<AAPL, Integer> {
     @Query("select u from AAPL u where u.timePoint = ?1 ")
     List<AAPL> findBySingleDate(Timestamp date);
 
-
+    @Query(value="SELECT * FROM ?1 u where u.timePoint = ?2", nativeQuery = true)
+    List<AAPL> universalfind(String table, Timestamp date);
 }

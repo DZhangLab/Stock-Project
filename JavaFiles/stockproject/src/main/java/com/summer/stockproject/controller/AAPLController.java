@@ -1,9 +1,11 @@
 package com.summer.stockproject.controller;
 
 import com.summer.stockproject.entity.AAPL;
+import com.summer.stockproject.entity.timestamptable;
 import com.summer.stockproject.helperfunction.chartjsData;
 import com.summer.stockproject.helperfunction.inputDate;
 import com.summer.stockproject.service.AAPLService;
+import com.summer.stockproject.service.timestampService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -26,7 +28,6 @@ import java.util.List;
 @RequestMapping("/single-stock")
 public class AAPLController {
     private AAPLService AAPLSerivce;
-
     @Autowired
     public AAPLController(AAPLService AAPLSerivce) {
         this.AAPLSerivce = AAPLSerivce;
@@ -86,4 +87,20 @@ public class AAPLController {
         System.out.println(inputDate.getDay());
         return "index";
     }
+
+
+    @GetMapping("/test")
+    public String unifind() throws ParseException {
+        Date startDate = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").parse("2022-6-30 9:30:00");
+        Date endDate = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").parse("2022-6-30 15:59:00");
+        Timestamp sqltimestart = new Timestamp(startDate.getTime());
+        Timestamp sqltimeend = new Timestamp(endDate.getTime());
+
+        List<AAPL> list = AAPLSerivce.universalfind("amazon", sqltimestart);
+        System.out.println(list);
+
+        return "redirect:/";
+    }
+
+
 }

@@ -53,5 +53,10 @@ public class AAPLServiceImpl implements AAPLService {
         return aAPLRepository.findBySingleDate(date);
     }
 
+    @Override
+    public List<AAPL> universalfind(String tablename, Timestamp date) {
+        return aAPLRepository.universalfind(tablename, date);
+    }
+
 
 }
