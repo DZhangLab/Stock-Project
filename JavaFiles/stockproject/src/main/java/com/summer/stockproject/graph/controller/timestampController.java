@@ -18,7 +18,7 @@ import java.util.Date;
 import java.util.List;
 
 @Controller
-@RequestMapping("/test")
+@RequestMapping("/graph")
 public class timestampController {
     private timestampService timestampservice;
 
@@ -37,24 +37,31 @@ public class timestampController {
         Timestamp sqltimeend = new Timestamp(endDate.getTime());
 
         List<timestamptable> list1 = timestampservice.findByStartDateBetween(sqltimestart,sqltimeend);
-        System.out.println(list1);
+       // System.out.println(list1);
         chartjsDataNew listData = new chartjsDataNew(list1);
         theModel.addAttribute("apple", listData.getPrice());
         theModel.addAttribute("timepoint", listData.getDateInSecond());
         //return "redirect:/";
-        return "graphpages/graph-page";
+        return "graphpages/singlegraph";
     }
 
     @PostMapping("/single")
     public String save(@RequestParam(name = "date") String date, Model theModel) throws ParseException {
-        System.out.println(date);
-        Date startDate = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").parse(date + " 9:30:00");
-        Date endDate = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").parse(date + " 15:59:00");
+        //System.out.println(date);
+        String startD = date + " 9:30:00";
+        String endD = date + " 15:59:00";
+        Date startDate = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").parse(startD);
+        Date endDate = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").parse(endD);
         Timestamp sqltimestart = new Timestamp(startDate.getTime());
         Timestamp sqltimeend = new Timestamp(endDate.getTime());
 
         List<timestamptable> list1 = timestampservice.findByStartDateBetween(sqltimestart,sqltimeend);
-        System.out.println(list1);
+        if (list1.isEmpty()) {
+            //System.out.println("this is empty JLDKJ:K:EKJKEJKEEJKEJEEJEKJEKJEKJKJEKJEJKEJKEKEJKJEK");
+            theModel.addAttribute("errorstatus", true);
+            return "graphpages/graph-page";
+        }
+        //System.out.println(list1);
         chartjsDataNew listData = new chartjsDataNew(list1);
         theModel.addAttribute("apple", listData.getPrice());
         theModel.addAttribute("timepoint", listData.getDateInSecond());

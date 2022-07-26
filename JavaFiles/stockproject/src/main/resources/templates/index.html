@@ -6,12 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
     <title>Title</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.4.0/Chart.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script type="text/javascript" th:src="@{/jsFile/getdata.js}" ></script>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-gH2yIJqKdNHPEq0n4Mqa/HGKIhSkIHeL5AyhkYV8i59U5AR6csBvApHHNl/vI1Bx" crossorigin="anonymous">
 
     <link rel="stylesheet" href="https://cdn.metroui.org.ua/v4/css/metro-all.min.css">
     <script type="text/javascript" th:src="@{/jsFile/getdata.js}" ></script>
     <link href="sticky-footer-navbar.css" rel="stylesheet">
+
 </head>
 
 <body>
@@ -22,7 +26,7 @@
     <a th:href="@{single-stock/aapl}">link to multiple</a>
     <a th:href="@{single-stock/single}">single</a>
     <a th:href="@{single-stock/test}">test</a>
-    <a th:href="@{test/timestamp}">timestamp</a>
+    <a th:href="@{graph/timestamp}">timestamp</a>
     <br>
     <a th:href="@{single-stock/header}">header</a>
 
@@ -32,6 +36,7 @@
 
 
 </div>
+
 
 <!--<header th:insert="/fragments/header :: header"></header>-->
 <h1>asdfsdf</h1>
@@ -57,10 +62,77 @@
 <h1>asdfsdf</h1>
 <h1>asdfsdf</h1>
 <h1>asdfsdf</h1>
+<script>
+function toggleField(hideObj,showObj){
+  hideObj.disabled=true;
+  hideObj.style.display='none';
+  showObj.disabled=false;
+  showObj.style.display='inline';
+  showObj.focus();
+}
+</script>
+<body>
+<form name="BrowserSurvey" action="#">
+    Browser: <select name="browser"
+                     onchange="if(this.options[this.selectedIndex].value=='customOption'){
+              toggleField(this,this.nextSibling);
+              this.selectedIndex='0';
+          }">
+    <option></option>
+    <option value="customOption">[type a custom value]</option>
+    <option>Chrome</option>
+    <option>Firefox</option>
+    <option>Internet Explorer</option>
+    <option>Opera</option>
+    <option>Safari</option>
+</select><input type="text" list="cars" name="browser" style="display:none;" disabled="disabled"
+                onblur="if(this.value==''){toggleField(this,this.previousSibling);}">
+    <input type="submit" value="Submit">
+</form>
+<datalist id="cars">
+    <option>APL</option>
+    <option>NEX</option>
+    <option>MLB</option>
+    <option>TED</option>
+</datalist>
+
+<!--<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">-->
+
+
+<div class="wrapper" style = "width:200px;
+padding:20px;
+height: 150px;"><select name="" id="" class="form-control" onfocus='this.size=5;' onblur='this.size=1;' onchange='this.size=1; this.blur();'>
+    <option value="">One</option>
+    <option value="">Two</option>
+    <option value="">Three</option>
+    <option value="">Four</option>
+    <option value="">Five</option>
+    <option value="">Six</option>
+    <option value="">Seven</option>
+    <option value="">Eight</option>
+    <option value="">Nine</option>
+    <option value="">Ten</option>
+</select></div>
+<h1>asdfsdf</h1>
+<h1>asdfsdf</h1>
+<h1>asdfsdf</h1>
+<h1>asdfsdf</h1>
+<h1>asdfsdf</h1>
+<h1>asdfsdf</h1>
+<h1>asdfsdf</h1>
+<h1>asdfsdf</h1>
+<h1>asdfsdf</h1>
+<h1>asdfsdf</h1>
+<h1>asdfsdf</h1>
+<h1>asdfsdf</h1>
+<h1>asdfsdf</h1>
+<h1>asdfsdf</h1>
 <div th:replace="/fragments/header :: footer"></div>
 <script src="https://cdn.metroui.org.ua/v4/js/metro.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-A3rJD856KowSb7dwlZdYEkO39Gagi7vIsF0jrRAoQmDKKtQBHUuLZ9AsSv4jD4Xa" crossorigin="anonymous"></script>
-
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.12.9/dist/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
 </body>
 </html>
 
