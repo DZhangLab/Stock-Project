@@ -1,26 +1,19 @@
-package com.summer.stockproject.controller;
+package com.summer.stockproject.graph.controller;
 
-import com.summer.stockproject.entity.AAPL;
-import com.summer.stockproject.entity.timestamptable;
-import com.summer.stockproject.helperfunction.chartjsData;
-import com.summer.stockproject.helperfunction.inputDate;
-import com.summer.stockproject.service.AAPLService;
-import com.summer.stockproject.service.timestampService;
+import com.summer.stockproject.graph.entity.AAPL;
+import com.summer.stockproject.graph.entity.timestamptable;
+import com.summer.stockproject.graph.helperfunction.chartjsData;
+import com.summer.stockproject.graph.helperfunction.chartjsDataNew;
+import com.summer.stockproject.graph.helperfunction.inputDate;
+import com.summer.stockproject.graph.service.AAPLService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.*;
 
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -82,11 +75,7 @@ public class AAPLController {
         return "graphpages/singleday";
     }
 
-    @PostMapping("/single")
-    public String save(@ModelAttribute("inputDate") inputDate inputDate) {
-        System.out.println(inputDate.getDay());
-        return "index";
-    }
+
 
 
     @GetMapping("/test")
@@ -100,6 +89,11 @@ public class AAPLController {
         System.out.println(list);
 
         return "redirect:/";
+    }
+
+    @GetMapping("/header")
+    public String header() {
+        return "fragments/header";
     }
 
 

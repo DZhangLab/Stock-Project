@@ -1,8 +1,6 @@
-package com.summer.stockproject.entity;
+package com.summer.stockproject.graph.entity;
 
 import javax.persistence.*;
-import java.io.Serializable;
-import java.sql.Timestamp;
 
 @Entity
 @Table(name="timestamptable")
@@ -70,11 +68,11 @@ public class timestamptable {
 
 
 
-    public com.summer.stockproject.entity.mykey getMykey() {
+    public mykey getMykey() {
         return mykey;
     }
 
-    public void setMykey(com.summer.stockproject.entity.mykey mykey) {
+    public void setMykey(com.summer.stockproject.graph.entity.mykey mykey) {
         this.mykey = mykey;
     }
 
@@ -82,7 +80,7 @@ public class timestamptable {
 
     }
 
-    public timestamptable(com.summer.stockproject.entity.mykey mykey, double minuteOpen, double minuteHigh, double minuteLow, double minuteclose, int minuteVolume) {
+    public timestamptable(com.summer.stockproject.graph.entity.mykey mykey, double minuteOpen, double minuteHigh, double minuteLow, double minuteclose, int minuteVolume) {
         this.mykey = mykey;
         this.minuteOpen = minuteOpen;
         this.minuteHigh = minuteHigh;

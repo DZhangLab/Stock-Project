@@ -1,4 +1,4 @@
-package com.summer.stockproject.helperfunction;
+package com.summer.stockproject.graph.helperfunction;
 
 public class inputDate {
     private int year;

@@ -1,8 +1,7 @@
-package com.summer.stockproject.entity;
+package com.summer.stockproject.graph.entity;
 
 import javax.persistence.Column;
 import javax.persistence.Embeddable;
-import javax.persistence.Id;
 import java.io.Serializable;
 import java.sql.Timestamp;
 import java.util.Objects;

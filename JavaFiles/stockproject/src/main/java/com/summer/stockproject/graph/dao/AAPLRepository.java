@@ -1,12 +1,11 @@
-package com.summer.stockproject.dao;
+package com.summer.stockproject.graph.dao;
 
-import com.summer.stockproject.entity.AAPL;
+import com.summer.stockproject.graph.entity.AAPL;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.util.Date;
 import java.util.List;
 
 public interface AAPLRepository extends JpaRepository<AAPL, Integer> {

@@ -1,15 +1,12 @@
-package com.summer.stockproject.service;
+package com.summer.stockproject.graph.service;
 
-import com.summer.stockproject.dao.AAPLRepository;
-import com.summer.stockproject.entity.AAPL;
+import com.summer.stockproject.graph.entity.AAPL;
+import com.summer.stockproject.graph.dao.AAPLRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.util.Date;
 import java.util.List;
 
 @Service

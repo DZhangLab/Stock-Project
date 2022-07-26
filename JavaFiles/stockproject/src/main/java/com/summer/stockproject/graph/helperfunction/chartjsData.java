@@ -1,6 +1,6 @@
-package com.summer.stockproject.helperfunction;
+package com.summer.stockproject.graph.helperfunction;
 
-import com.summer.stockproject.entity.AAPL;
+import com.summer.stockproject.graph.entity.AAPL;
 
 import java.util.ArrayList;
 import java.util.List;

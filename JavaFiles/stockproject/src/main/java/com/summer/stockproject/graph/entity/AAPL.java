@@ -1,4 +1,4 @@
-package com.summer.stockproject.entity;
+package com.summer.stockproject.graph.entity;
 
 import javax.persistence.*;
 import java.sql.Timestamp;

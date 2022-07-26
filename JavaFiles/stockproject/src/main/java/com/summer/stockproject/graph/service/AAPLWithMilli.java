@@ -1,7 +1,7 @@
-package com.summer.stockproject.service;
+package com.summer.stockproject.graph.service;
 
-import com.summer.stockproject.dao.AAPLRepository;
-import com.summer.stockproject.entity.AAPL;
+import com.summer.stockproject.graph.entity.AAPL;
+import com.summer.stockproject.graph.dao.AAPLRepository;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
