@@ -1,10 +1,40 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <title>Title</title>
 </head>
 <body>
+
+<form action="post" th:action="@{/single-stock/test1}">
+    <div class="wrapper" style = "width:200px;
+padding:20px;
+height: 150px;"><select name="" id="" class="form-control" onfocus='this.size=5;' onblur='this.size=1;' onchange="this.size=1; this.blur(); if(this.options[this.selectedIndex].value=='customOption'){
+              toggleField(this,this.nextSibling);
+              this.selectedIndex='0';}">
+        <option value="">One</option>
+        <option value="customOption">[type a custom value]</option>
+        <option value="">Two</option>
+        <option value="">Three</option>
+        <option value="">Four</option>
+        <option value="">Five</option>
+        <option value="">Six</option>
+        <option value="">Seven</option>
+        <option value="">Eight</option>
+        <option value="">Nine</option>
+        <option value="">Ten</option>
+    </select><input type="text" list="cars" name="browser" style="display:none;" disabled="disabled"
+                    onblur="if(this.value==''){toggleField(this,this.previousSibling);}">
+        <button type="submit">submit</button>
+</form>
+<datalist id="cars">
+    <option>APL</option>
+    <option>NEX</option>
+    <option>MLB</option>
+    <option>TED</option>
+    <option>chrome</option>
+    <option>opera</option>
+</datalist>
 
 </body>
 </html>

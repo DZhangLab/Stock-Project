@@ -96,5 +96,16 @@ public class AAPLController {
         return "fragments/header";
     }
 
+    @PostMapping("/test")
+    public String testsubmit(@RequestParam(name = "browser") String browser) {
+        System.out.println(browser);
+        return "redirect:/";
+    }
+
+    @GetMapping("/check")
+    public String check() {
+        return "graphpages/test";
+    }
+
 
 }

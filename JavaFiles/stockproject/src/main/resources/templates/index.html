@@ -72,47 +72,41 @@ function toggleField(hideObj,showObj){
 }
 </script>
 <body>
-<form name="BrowserSurvey" action="#">
-    Browser: <select name="browser"
-                     onchange="if(this.options[this.selectedIndex].value=='customOption'){
+
+
+
+<!--<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">-->
+
+<form action="#" method="post" th:action="@{/single-stock/test}">
+    <div class="wrapper" style = "width:200px;
+padding:20px;
+height: 150px;"><select name="browser" id="" class="form-control" onfocus='this.size=5;' onblur='this.size=1;' onchange="this.size=1; this.blur(); if(this.options[this.selectedIndex].value=='customOption'){
               toggleField(this,this.nextSibling);
-              this.selectedIndex='0';
-          }">
-    <option></option>
-    <option value="customOption">[type a custom value]</option>
-    <option>Chrome</option>
-    <option>Firefox</option>
-    <option>Internet Explorer</option>
-    <option>Opera</option>
-    <option>Safari</option>
-</select><input type="text" list="cars" name="browser" style="display:none;" disabled="disabled"
-                onblur="if(this.value==''){toggleField(this,this.previousSibling);}">
-    <input type="submit" value="Submit">
+              this.selectedIndex='0';}">
+        <option>One</option>
+        <option value="customOption">[type a custom value]</option>
+        <option value="">Two</option>
+        <option value="">Three</option>
+        <option value="">Four</option>
+        <option value="">Five</option>
+        <option value="">Six</option>
+        <option value="">Seven</option>
+        <option value="">Eight</option>
+        <option value="">Nine</option>
+        <option value="">Ten</option>
+    </select><input type="text" list="cars" name="browser" style="display:none;" disabled="disabled"
+                    onblur="if(this.value==''){toggleField(this,this.previousSibling);}">
+        <input type="submit" value="Submit"></div>
 </form>
 <datalist id="cars">
     <option>APL</option>
     <option>NEX</option>
     <option>MLB</option>
     <option>TED</option>
+    <option>chrome</option>
+    <option>opera</option>
 </datalist>
 
-<!--<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">-->
-
-
-<div class="wrapper" style = "width:200px;
-padding:20px;
-height: 150px;"><select name="" id="" class="form-control" onfocus='this.size=5;' onblur='this.size=1;' onchange='this.size=1; this.blur();'>
-    <option value="">One</option>
-    <option value="">Two</option>
-    <option value="">Three</option>
-    <option value="">Four</option>
-    <option value="">Five</option>
-    <option value="">Six</option>
-    <option value="">Seven</option>
-    <option value="">Eight</option>
-    <option value="">Nine</option>
-    <option value="">Ten</option>
-</select></div>
 <h1>asdfsdf</h1>
 <h1>asdfsdf</h1>
 <h1>asdfsdf</h1>
