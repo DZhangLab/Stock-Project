@@ -10,6 +10,6 @@ import java.util.List;
 
 public interface timestampRepository extends JpaRepository<timestamptable, mykey> {
     List<timestamptable> findAll();
-    @Query("select u from timestamptable u where u.mykey.timePoint > ?1 and u.mykey.timePoint < ?2")
-    List<timestamptable> findByStartDateBetween(Timestamp start, Timestamp end);
+    @Query("select u from timestamptable u where u.mykey.timePoint > ?1 and u.mykey.timePoint < ?2 and u.mykey.companyName = ?3")
+    List<timestamptable> findByStartDateBetween(Timestamp start, Timestamp end, String name);
 }

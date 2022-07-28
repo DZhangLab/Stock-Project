@@ -8,5 +8,5 @@ import java.util.List;
 public interface timestampService {
     List<timestamptable> findAll();
 
-    List<timestamptable> findByStartDateBetween(Timestamp start, Timestamp end);
+    List<timestamptable> findByStartDateBetween(Timestamp start, Timestamp end, String name);
 }

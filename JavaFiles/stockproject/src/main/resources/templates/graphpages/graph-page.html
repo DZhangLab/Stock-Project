@@ -21,12 +21,47 @@
     hello world
     <a th:href="@{/}">back</a>
     <form action="#" method="post" th:action="@{/graph/single}" >
+        <div class="wrapper" style = "width:200px;
+padding:20px;
+height: 150px;"><select name="browser" id="" class="form-control" onfocus='this.size=5;' onblur='this.size=1;' onchange="this.size=1; this.blur(); if(this.options[this.selectedIndex].value=='customOption'){
+              toggleField(this,this.nextSibling);
+              this.selectedIndex='0';}" >
+            <option ></option>
+            <option value="customOption">[type a custom value]</option>
+            <th:blcok th:each="companyname : ${companyList}">
+                <option th:text="${companyname.companyName}">a</option>
+            </th:blcok>
+
+        </select><input type="text" list="cars" name="browser" style="display:none;" disabled="disabled"
+                        onblur="if(this.value==''){toggleField(this,this.previousSibling);}">
         <input type="text"  name="date" data-role="calendarpicker" data-on-day-click="myFunction">
-        <div th:if="${errorstatus == true}" class="alert alert-danger">The stock market didn't open on that day, or our system do not have that data.</div>
+            <div th:if="${empty == true}" class="alert alert-danger">Company name and date cannot be empty.</div>
+            <div th:if="${exist == true}" class="alert alert-danger">Company has not been included yet. Please try another one.</div>
+            <div th:if="${errorstatus == true}" class="alert alert-danger">The stock market didn't open on that day, or our system do not have that data.</div>
         <button type="submit">submit</button>
     </form>
 </div>
+<script>
+function toggleField(hideObj,showObj){
+  hideObj.disabled=true;
+  hideObj.style.display='none';
+  showObj.disabled=false;
+  showObj.style.display='inline';
+  showObj.focus();
+}
+</script>
+<body>
 
+
+
+<!--<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">-->
+
+
+<datalist id="cars">
+    <th:blcok th:each="companyname : ${companyList}">
+        <option th:text="${companyname.companyName}">a</option>
+    </th:blcok>
+</datalist>
 <script type="text/javascript"  src="https://canvasjs.com/assets/script/jquery-1.11.1.min.js"></script>
 <script type="text/javascript" src="https://canvasjs.com/assets/script/canvasjs.stock.min.js"></script>
 

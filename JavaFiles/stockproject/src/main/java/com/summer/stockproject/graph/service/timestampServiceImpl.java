@@ -9,7 +9,7 @@ import java.sql.Timestamp;
 import java.util.List;
 @Service
 public class timestampServiceImpl implements timestampService{
-    public timestampRepository timestampRepository;
+    private timestampRepository timestampRepository;
 
     @Autowired
     public timestampServiceImpl(timestampRepository timestampRepository) {
@@ -21,7 +21,7 @@ public class timestampServiceImpl implements timestampService{
     }
 
     @Override
-    public List<timestamptable> findByStartDateBetween(Timestamp start, Timestamp end) {
-        return timestampRepository.findByStartDateBetween(start, end);
+    public List<timestamptable> findByStartDateBetween(Timestamp start, Timestamp end, String name) {
+        return timestampRepository.findByStartDateBetween(start, end, name);
     }
 }

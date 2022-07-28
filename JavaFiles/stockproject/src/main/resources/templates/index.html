@@ -24,8 +24,6 @@
     hello world
 
     <a th:href="@{single-stock/aapl}">link to multiple</a>
-    <a th:href="@{single-stock/single}">single</a>
-    <a th:href="@{single-stock/test}">test</a>
     <a th:href="@{graph/timestamp}">timestamp</a>
     <br>
     <a th:href="@{single-stock/header}">header</a>
@@ -38,89 +36,7 @@
 </div>
 
 
-<!--<header th:insert="/fragments/header :: header"></header>-->
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<script>
-function toggleField(hideObj,showObj){
-  hideObj.disabled=true;
-  hideObj.style.display='none';
-  showObj.disabled=false;
-  showObj.style.display='inline';
-  showObj.focus();
-}
-</script>
-<body>
 
-
-
-<!--<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">-->
-
-<form action="#" method="post" th:action="@{/single-stock/test}">
-    <div class="wrapper" style = "width:200px;
-padding:20px;
-height: 150px;"><select name="browser" id="" class="form-control" onfocus='this.size=5;' onblur='this.size=1;' onchange="this.size=1; this.blur(); if(this.options[this.selectedIndex].value=='customOption'){
-              toggleField(this,this.nextSibling);
-              this.selectedIndex='0';}">
-        <option>One</option>
-        <option value="customOption">[type a custom value]</option>
-        <option value="">Two</option>
-        <option value="">Three</option>
-        <option value="">Four</option>
-        <option value="">Five</option>
-        <option value="">Six</option>
-        <option value="">Seven</option>
-        <option value="">Eight</option>
-        <option value="">Nine</option>
-        <option value="">Ten</option>
-    </select><input type="text" list="cars" name="browser" style="display:none;" disabled="disabled"
-                    onblur="if(this.value==''){toggleField(this,this.previousSibling);}">
-        <input type="submit" value="Submit"></div>
-</form>
-<datalist id="cars">
-    <option>APL</option>
-    <option>NEX</option>
-    <option>MLB</option>
-    <option>TED</option>
-    <option>chrome</option>
-    <option>opera</option>
-</datalist>
-
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
-<h1>asdfsdf</h1>
 <div th:replace="/fragments/header :: footer"></div>
 <script src="https://cdn.metroui.org.ua/v4/js/metro.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-A3rJD856KowSb7dwlZdYEkO39Gagi7vIsF0jrRAoQmDKKtQBHUuLZ9AsSv4jD4Xa" crossorigin="anonymous"></script>
