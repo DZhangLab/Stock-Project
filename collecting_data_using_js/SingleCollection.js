@@ -184,7 +184,7 @@ function myfunction(position, startingMonth, startingDay, endMonth, endDay, star
 // })
 
 app.listen(3000,function() {
-  let test = 1;
+  let test = 0;
 
   const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   const loop = async (position) => {
@@ -193,22 +193,23 @@ app.listen(3000,function() {
             let startDay = 11;
             let endDay = 22;
 
-            console.log("this is the test praam" + position);
+            //console.log("this is the test praam" + position);
             // for (let i = 0; i < 10; i++ ) {
             startDay = startDay - 14 * i;
             endDay = endDay - 14 * i;
-            let startingDate = new Date(2022, 7, startDay );
-            let endingDate = new Date(2022, 7, endDay );
+            let startingDate = new Date(2022, 6, startDay );
+            let endingDate = new Date(2022, 6, endDay );
 
-            //console.log("check" + startDay);
+            //console.log("check" + startingDate);
 
             let valueStartingDay = startingDate.getDate();
-            let valueStartingMonth = startingDate.getMonth();
+            let valueStartingMonth = startingDate.getMonth() + 1;
             let valueEndDay = endingDate.getDate();
-            let valueEndMonth = endingDate.getMonth();
+            let valueEndMonth = endingDate.getMonth() + 1;
             let currentStartYear = startingDate.getYear() + 1900;
             let currentEndYear = endingDate.getYear() + 1900;
-            //console.log("chehchchch" + currentEndYear);
+            //console.log("chehchchch" + endingDate.getMonth());
+            //console.log(startingDate);
             if (currentEndYear == 2020 && valueEndMonth == 3) {
               break;
             }
@@ -229,7 +230,7 @@ app.listen(3000,function() {
             //   }
 
 
-            console.log("the current process is: " + i);
+            //console.log("the current process is: " + i);
 
       await wait(8000)
 
@@ -262,5 +263,6 @@ app.listen(3000,function() {
     test = test + 1;
     console.log(test);
   })
+
 
 })
