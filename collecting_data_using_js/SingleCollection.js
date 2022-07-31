@@ -29,7 +29,7 @@ function myfunction(position, startingMonth, startingDay, endMonth, endDay, star
 
   let datetime = "&start_date="+startYear+"-"+ startingMonth+"-"+startingDay+  " 09:30:00&end_date="+endYear+"-"+ endMonth+"-"+ endDay+" 15:59:00&" ;
   // const url = "https://api.twelvedata.com/time_series?symbol=" + symbolList[position] + "&interval=1min&outputsize=390&apikey=" + process.env.TWELVE;
-  const url = "https://api.twelvedata.com/time_series?symbol="+symbolList[position]+"&interval=1min"+ datetime+"apikey=" + process.env.TWELVE;
+  const url = "https://api.twelvedata.com/time_series?symbol="+symbolList[position]+"&interval=1min"+ datetime+"apikey=" + process.env.TWELVES;
 
   //console.log("check point" + position);
   console.log("Check point: the url is: " + url);
@@ -61,7 +61,7 @@ function myfunction(position, startingMonth, startingDay, endMonth, endDay, star
           nameForTable = "KEY1"
         }
         const creatTable = "CREATE TABLE IF NOT EXISTS time_series ( company_name varchar(10), time_point DATETIME, minute_open double, minute_high double, minute_low double, minute_close double, minute_volume int,PRIMARY KEY(company_name, time_point));"
-        console.log(creatTable)
+        //console.log(creatTable)
         con.query(creatTable, function(err, result) {
           if (err) throw err;
           //console.log("Table " + symbolList[position] +" created!");
@@ -84,7 +84,10 @@ function myfunction(position, startingMonth, startingDay, endMonth, endDay, star
           //console.log(saveValue);
           con.query(saveValue, function(err, result) {
             if (err) {
-              console.log(err);
+              console.log("error");
+
+              //break;
+              //console.log(err);
             }
             //console.log("inserted!");
           })
@@ -113,8 +116,10 @@ function myfunction(position, startingMonth, startingDay, endMonth, endDay, star
         // })
         console.log(lengthOfJson + " rows of the data has been stored.")
       } catch (e) {
-        //console.error(e.message);
         console.log("error");
+
+        //break;
+        //console.error(e.message);
       }
     });
     // response.on("data", function(data) {
@@ -184,7 +189,7 @@ function myfunction(position, startingMonth, startingDay, endMonth, endDay, star
 // })
 
 app.listen(3000,function() {
-  let test = 0;
+  let test = 54;
 
   const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   const loop = async (position) => {
