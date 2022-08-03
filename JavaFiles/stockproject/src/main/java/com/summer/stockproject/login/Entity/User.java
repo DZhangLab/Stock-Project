@@ -25,16 +25,20 @@ public class User {
     @Column(name="password")
     private String password;
 
+    @Column(name="salt")
+    private String saltt;
+
     public User() {
 
     }
 
-    public User(String email, String firstname, String lastname, int phone, String password) {
+    public User(String email, String firstname, String lastname, int phone, String password, String saltt) {
         this.email = email;
         this.firstname = firstname;
         this.lastname = lastname;
         this.phone = phone;
         this.password = password;
+        this.saltt = saltt;
     }
 
     public String getEmail() {
@@ -77,6 +81,14 @@ public class User {
         this.password = password;
     }
 
+    public String getSaltt() {
+        return saltt;
+    }
+
+    public void setSaltt(String saltt) {
+        this.saltt = saltt;
+    }
+
     @Override
     public String toString() {
         return "User{" +
@@ -85,6 +97,7 @@ public class User {
                 ", lastname='" + lastname + '\'' +
                 ", phone=" + phone +
                 ", password='" + password + '\'' +
+                ", saltt='" + saltt + '\'' +
                 '}';
     }
 }

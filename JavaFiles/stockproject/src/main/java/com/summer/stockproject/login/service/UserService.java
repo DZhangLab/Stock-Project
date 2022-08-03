@@ -6,4 +6,6 @@ import org.springframework.stereotype.Service;
 @Service
 public interface UserService {
     public User getReferenceById(String email);
+    public void save(User user);
+
 }

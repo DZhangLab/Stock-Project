@@ -28,7 +28,10 @@
     <br>
     <a th:href="@{single-stock/header}">header</a>
     <a th:href="@{login/login}">login</a>
-
+    <br>
+    <form th:action="@{logout}" method="post">
+    <button type="submit">logout</button>
+    </form>
     <h1>This is the home page</h1>
     <!--<input data-role="datepicker">-->
     <!--<div type="text" data-role="datepicker" data-on-set="myFunction"></div>-->
