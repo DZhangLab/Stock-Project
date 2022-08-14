@@ -1,13 +1,12 @@
 package com.summer.stockproject.login.Entity;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
+import javax.persistence.*;
+import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name="user")
-public class User {
+public class User  {
 
     @Id
     @Column(name="email")
@@ -27,6 +26,17 @@ public class User {
 
     @Column(name="salt")
     private String saltt;
+
+    @OneToMany(mappedBy = "userrole.useremail" , cascade =  CascadeType.ALL, fetch = FetchType.EAGER)
+    private Set<Role> roles;
+
+    public Set<Role> getRoles() {
+        return roles;
+    }
+//
+    public void setRoles(Set<Role> roles) {
+        this.roles = roles;
+    }
 
     public User() {
 
@@ -98,6 +108,7 @@ public class User {
                 ", phone=" + phone +
                 ", password='" + password + '\'' +
                 ", saltt='" + saltt + '\'' +
+                ", roles=" + roles +
                 '}';
     }
 }

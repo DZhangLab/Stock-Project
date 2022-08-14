@@ -95,4 +95,9 @@ public class timestampController {
         theModel.addAttribute("timepoint", listData.getDateInSecond());
         return "graphpages/singlegraph";
     }
+
+    @GetMapping("/admin")
+    public String adminaccess() {
+        return "test/test";
+    }
 }

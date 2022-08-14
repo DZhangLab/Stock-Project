@@ -1,7 +1,8 @@
 package com.summer.stockproject.login.config;
 
 import com.summer.stockproject.login.service.AuthenticationService;
-import com.summer.stockproject.login.service.MyUserDetailsService;
+import com.summer.stockproject.login.service.HashService;
+import com.summer.stockproject.login.service.UserDetailsServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -9,38 +10,48 @@ import org.springframework.security.config.annotation.authentication.builders.Au
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig  extends WebSecurityConfigurerAdapter {
-    private MyUserDetailsService authenticationService;
+    private AuthenticationService authenticationService;
+
+    private HashService hashService;
 
     @Autowired
-    public SecurityConfig(MyUserDetailsService authenticationService) {
+    public SecurityConfig(AuthenticationService authenticationService, HashService hashService) {
+        this.hashService = hashService;
         this.authenticationService = authenticationService;
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService() {
+        return new UserDetailsServiceImpl();
     }
 
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.userDetailsService(authenticationService).passwordEncoder(getPasswordEncoder());
+        auth.authenticationProvider(this.authenticationService);
+
     }
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http.authorizeRequests()
                 .antMatchers("/jsFile?**","/signup").permitAll()
-                .anyRequest().authenticated();
+             //   .antMatchers("/").hasRole("user")
+                .antMatchers("/graph/admin").hasAuthority("admin")
+                .anyRequest().authenticated().and()
+                .logout().permitAll();
         http.formLogin()
                 .loginPage("/login")
                 .permitAll();
 
     }
 
-    @Bean
-    public PasswordEncoder getPasswordEncoder() {
-        return NoOpPasswordEncoder.getInstance();
-    }
+
 
 }
