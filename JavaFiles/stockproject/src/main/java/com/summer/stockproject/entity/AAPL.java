@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 import java.sql.Date;
 
 @Entity
-@Table(name="amazon")
+@Table(name="AAPL")
 public class AAPL {
 
     @Id
@@ -14,30 +14,29 @@ public class AAPL {
     @Column(name="id")
     private int id;
 
-    @Column(name="time_point", columnDefinition ="DATETIME")
-    //@Temporal(TemporalType.TIMESTAMP)
+    @Column(name="timePoint")
     private Timestamp timePoint;
 
-    @Column(name="minute_open")
-    private double minuteOpen;
+    @Column(name="minuteOpen")
+    private int minuteOpen;
 
-    @Column(name="minute_high")
-    private double minuteHigh;
+    @Column(name="minuteHigh")
+    private int minuteHigh;
 
-    @Column(name="minute_low")
-    private double minuteLow;
+    @Column(name="minuteLow")
+    private int minuteLow;
 
-    @Column(name="minute_close")
-    private double  intminuteClose;
+    @Column(name="minuteClose")
+    private int intminuteClose;
 
-    @Column(name="minute_volume")
+    @Column(name="minuteVolume")
     private int minuteVolume;
 
     public AAPL() {
 
     }
 
-    public AAPL(int id, Timestamp timePoint, double minuteOpen, double minuteHigh, double minuteLow, double intminuteClose, int minuteVolume) {
+    public AAPL(int id, Timestamp timePoint, int minuteOpen, int minuteHigh, int minuteLow, int intminuteClose, int minuteVolume) {
         this.id = id;
         this.timePoint = timePoint;
         this.minuteOpen = minuteOpen;
@@ -63,35 +62,35 @@ public class AAPL {
         this.timePoint = timePoint;
     }
 
-    public double getMinuteOpen() {
+    public int getMinuteOpen() {
         return minuteOpen;
     }
 
-    public void setMinuteOpen(double minuteOpen) {
+    public void setMinuteOpen(int minuteOpen) {
         this.minuteOpen = minuteOpen;
     }
 
-    public double getMinuteHigh() {
+    public int getMinuteHigh() {
         return minuteHigh;
     }
 
-    public void setMinuteHigh(double minuteHigh) {
+    public void setMinuteHigh(int minuteHigh) {
         this.minuteHigh = minuteHigh;
     }
 
-    public double getMinuteLow() {
+    public int getMinuteLow() {
         return minuteLow;
     }
 
-    public void setMinuteLow(double minuteLow) {
+    public void setMinuteLow(int minuteLow) {
         this.minuteLow = minuteLow;
     }
 
-    public double getIntminuteClose() {
+    public int getIntminuteClose() {
         return intminuteClose;
     }
 
-    public void setIntminuteClose(double intminuteClose) {
+    public void setIntminuteClose(int intminuteClose) {
         this.intminuteClose = intminuteClose;
     }
 

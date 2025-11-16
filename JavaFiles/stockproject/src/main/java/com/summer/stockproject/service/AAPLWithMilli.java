@@ -47,7 +47,7 @@ public class AAPLWithMilli implements AAPLService{
     }
 
     @Override
-    public List<AAPL> universalfind(String tablename, Timestamp date) {
+    public List<AAPL> universalfind(String tablename, Timestamp start, Timestamp end) {
         return null;
     }
 }

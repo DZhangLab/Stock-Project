@@ -87,14 +87,78 @@ for (var i = 0; i < timepoint.length; i++) {
 
 //console.log(dataPoints);
 
+  // Check if data exists
+  if (!apple || apple.length === 0) {
+    console.log("No data, skipping chart rendering");
+    return;
+  }
+
   var dps1 = [], dps2= [];
+  
+  // Calculate date range from data
+  var minDate = dataPoints.length > 0 ? dataPoints[0].x : new Date();
+  var maxDate = dataPoints.length > 0 ? dataPoints[dataPoints.length - 1].x : new Date();
+  
   var stockChart = new CanvasJS.StockChart("chartContainer",{
     title:{
-      text:"Stock chart for apple"
+      text:"Stock chart for " + (symbol || "apple")
     },
     subtitles: [{
       text:"Simple Moving Average"
     }],
+    rangeSelector: {
+      enabled: true,
+      inputFields: {
+        enabled: true,
+        from: minDate,
+        to: maxDate
+      },
+      buttons: [
+        {
+          range: 1,
+          rangeType: "minute",
+          label: "1m"
+        },
+        {
+          range: 3,
+          rangeType: "minute",
+          label: "3m"
+        },
+        {
+          range: 6,
+          rangeType: "minute",
+          label: "6m"
+        },
+        {
+          range: 1,
+          rangeType: "day",
+          label: "1d"
+        },
+        {
+          range: 3,
+          rangeType: "month",
+          label: "3m"
+        },
+        {
+          range: 6,
+          rangeType: "month",
+          label: "6m"
+        },
+        {
+          rangeType: "ytd",
+          label: "YTD"
+        },
+        {
+          range: 1,
+          rangeType: "year",
+          label: "1y"
+        },
+        {
+          rangeType: "all",
+          label: "All"
+        }
+      ]
+    },
     charts: [{
       axisY: {
         prefix: "$"

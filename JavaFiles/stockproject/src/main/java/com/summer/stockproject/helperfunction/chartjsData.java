@@ -18,10 +18,10 @@ public class chartjsData {
         dateInSecond = new ArrayList<>();
         for (AAPL apple : dataList) {
             ArrayList<Double> templist = new ArrayList<Double>();
-            templist.add(apple.getMinuteOpen());
-            templist.add(apple.getMinuteHigh());
-            templist.add(apple.getMinuteLow());
-            templist.add(apple.getIntminuteClose());
+            templist.add((double) apple.getMinuteOpen());
+            templist.add((double) apple.getMinuteHigh());
+            templist.add((double) apple.getMinuteLow());
+            templist.add((double) apple.getIntminuteClose());
             //System.out.println("apple");
             price.add(templist);
             dateInSecond.add(apple.getTimePoint().getTime());

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.sql.Timestamp;
 import java.text.ParseException;
@@ -34,11 +35,17 @@ public class AAPLController {
     }
 
     @GetMapping("/aapl")
-    public String getapple(Model theModel) throws ParseException {
+    public String getapple(
+            @RequestParam(required = false) String start,
+            @RequestParam(required = false) String end,
+            Model theModel) throws ParseException {
 
-        //set the time range as sql time stamp
-        Date startDate = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").parse("2022-6-30 9:30:00");
-        Date endDate = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").parse("2022-6-30 15:59:00");
+        // Set the time range as SQL timestamp - supports date parameters, defaults to current data date range
+        String startDateStr = start != null ? start : "2025-11-11 09:30:00";
+        String endDateStr = end != null ? end : "2025-11-11 16:00:00";
+        
+        Date startDate = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(startDateStr);
+        Date endDate = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(endDateStr);
         Timestamp sqltimestart = new Timestamp(startDate.getTime());
         Timestamp sqltimeend = new Timestamp(endDate.getTime());
 
@@ -69,6 +76,9 @@ public class AAPLController {
         // render the lists to the html
         theModel.addAttribute("apple", listData.getPrice());
         theModel.addAttribute("timepoint", listData.getDateInSecond());
+        theModel.addAttribute("symbol", "AAPL");
+        theModel.addAttribute("startDate", startDateStr);
+        theModel.addAttribute("endDate", endDateStr);
 
         return "graphpages/graph-page";
     }
@@ -96,7 +106,7 @@ public class AAPLController {
         Timestamp sqltimestart = new Timestamp(startDate.getTime());
         Timestamp sqltimeend = new Timestamp(endDate.getTime());
 
-        List<AAPL> list = AAPLSerivce.universalfind("amazon", sqltimestart);
+        List<AAPL> list = AAPLSerivce.universalfind("AMZN", sqltimestart, sqltimeend);
         System.out.println(list);
 
         return "redirect:/";

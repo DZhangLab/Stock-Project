@@ -14,30 +14,47 @@
 </head>
 <body>
 <div class="container">
-    hello world
-    <a th:href="@{/}">back</a>
-
-    <!--<input data-role="datepicker">-->
-    <!--<div type="text" data-role="datepicker" data-on-set="myFunction"></div>-->
-    <input type="text" data-role="calendarpicker" data-on-day-click="myFunction">
-    <button type="button" th:onclick="showAlert()">Show Alert</button>
-<!--    <div>-->
-<!--        <canvas id="myChart" width="300" height="300"></canvas>-->
-<!--    </div>-->
-
-
-    <div id="chartContainer" style="height: 370px; width: 100%;"></div>
+    <h2>📊 Stock Chart: <span th:text="${symbol}">AAPL</span></h2>
+    <p>Date Range: <span th:text="${startDate}">2025-11-11 09:30:00</span> to <span th:text="${endDate}">2025-11-11 16:00:00</span></p>
+    <a th:href="@{/stock/list}">← Back to Selection</a>
+    <a th:href="@{/}" style="margin-left: 10px;">Home</a>
+    
+    <!-- No data warning -->
+    <div th:if="${!hasData}" class="alert alert-warning" style="margin-top: 20px;">
+        <h4>⚠️ No Data Found</h4>
+        <p>No data found for stock <strong th:text="${symbol}"></strong> in the selected date range (<span th:text="${startDate}"></span> to <span th:text="${endDate}"></span>).</p>
+        <p><strong>Suggestions:</strong></p>
+        <ul>
+            <li>Check if the date range is correct</li>
+            <li>Verify if the stock has trading data on the selected dates</li>
+            <li>Try a different date range</li>
+        </ul>
+        <a th:href="@{/stock/list}" class="btn btn-primary">Select Different Date</a>
+    </div>
+    
+    <!-- Display chart when data exists -->
+    <div th:if="${hasData}" style="margin-top: 20px;">
+        <p class="text-muted">Found <span th:text="${dataCount}">0</span> data records</p>
+        <div th:if="${dataCount < 10}" class="alert alert-info" style="margin-bottom: 20px;">
+            <strong>ℹ️ Limited Data:</strong> This date range has very few data points (<span th:text="${dataCount}"></span>). 
+            The chart may not display properly. Try selecting a date with more data, or expand the date range.
+        </div>
+        <div id="chartContainer" style="height: 370px; width: 100%;"></div>
+    </div>
 
 </div>
 <script th:inline="javascript">
-<!--    <c:forEach  items="${apple}" var="apl" varStatus="loop">-->
-<!--    console.log(apl);-->
-
-<!--    </c:forEach>-->
-
-
 var apple = [[${apple}]];
 var timepoint = [[${timepoint}]];
+var hasData = [[${hasData}]];
+var symbol = [[${symbol}]];
+
+// Skip chart rendering if no data
+if (!hasData || !apple || apple.length === 0) {
+    console.log("No data to display");
+} else {
+    console.log("Data count: " + apple.length);
+}
 </script>
 <script type="text/javascript"  src="https://canvasjs.com/assets/script/jquery-1.11.1.min.js"></script>
 <script type="text/javascript" src="https://canvasjs.com/assets/script/canvasjs.stock.min.js"></script>

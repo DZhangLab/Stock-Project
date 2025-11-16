@@ -17,5 +17,5 @@ public interface AAPLService {
 
     List<AAPL> findBySingleDate(Timestamp date);
 
-    List<AAPL> universalfind(String tablename, Timestamp date);
+    List<AAPL> universalfind(String tablename, Timestamp start, Timestamp end);
 }

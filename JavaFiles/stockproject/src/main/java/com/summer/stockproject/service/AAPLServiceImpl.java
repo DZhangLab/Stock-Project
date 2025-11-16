@@ -7,6 +7,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
+import javax.persistence.Query;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.Date;
@@ -16,6 +19,9 @@ import java.util.List;
 public class AAPLServiceImpl implements AAPLService {
 
     private AAPLRepository aAPLRepository;
+    
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Autowired
     public AAPLServiceImpl(AAPLRepository AAPLRepository) {
@@ -54,8 +60,27 @@ public class AAPLServiceImpl implements AAPLService {
     }
 
     @Override
-    public List<AAPL> universalfind(String tablename, Timestamp date) {
-        return aAPLRepository.universalfind(tablename, date);
+    public List<AAPL> universalfind(String tablename, Timestamp start, Timestamp end) {
+        // Validate table name contains only letters and numbers to prevent SQL injection
+        if (!tablename.matches("^[A-Z0-9]+$")) {
+            throw new IllegalArgumentException("Invalid table name: " + tablename);
+        }
+        
+        // Handle META -> FB mapping (Facebook changed ticker from FB to META)
+        if (tablename.equals("META")) {
+            tablename = "FB";
+        }
+        
+        // Use EntityManager to dynamically build query
+        // Use backticks to handle reserved words in MySQL
+        String sql = "SELECT * FROM `" + tablename + "` u WHERE u.timePoint >= :start AND u.timePoint <= :end ORDER BY u.timePoint ASC";
+        Query query = entityManager.createNativeQuery(sql, AAPL.class);
+        query.setParameter("start", start);
+        query.setParameter("end", end);
+        
+        @SuppressWarnings("unchecked")
+        List<AAPL> result = query.getResultList();
+        return result;
     }
 
 
