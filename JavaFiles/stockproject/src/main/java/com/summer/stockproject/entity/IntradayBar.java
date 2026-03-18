@@ -1,13 +1,12 @@
 package com.summer.stockproject.entity;
 
 import javax.persistence.*;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
-import java.time.LocalDateTime;
-import java.sql.Date;
 
 @Entity
 @Table(name="AAPL")
-public class AAPL {
+public class IntradayBar {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -18,25 +17,25 @@ public class AAPL {
     private Timestamp timePoint;
 
     @Column(name="minuteOpen")
-    private int minuteOpen;
+    private BigDecimal minuteOpen;
 
     @Column(name="minuteHigh")
-    private int minuteHigh;
+    private BigDecimal minuteHigh;
 
     @Column(name="minuteLow")
-    private int minuteLow;
+    private BigDecimal minuteLow;
 
     @Column(name="minuteClose")
-    private int intminuteClose;
+    private BigDecimal intminuteClose;
 
     @Column(name="minuteVolume")
-    private int minuteVolume;
+    private Double minuteVolume;
 
-    public AAPL() {
+    public IntradayBar() {
 
     }
 
-    public AAPL(int id, Timestamp timePoint, int minuteOpen, int minuteHigh, int minuteLow, int intminuteClose, int minuteVolume) {
+    public IntradayBar(int id, Timestamp timePoint, BigDecimal minuteOpen, BigDecimal minuteHigh, BigDecimal minuteLow, BigDecimal intminuteClose, Double minuteVolume) {
         this.id = id;
         this.timePoint = timePoint;
         this.minuteOpen = minuteOpen;
@@ -62,49 +61,49 @@ public class AAPL {
         this.timePoint = timePoint;
     }
 
-    public int getMinuteOpen() {
+    public BigDecimal getMinuteOpen() {
         return minuteOpen;
     }
 
-    public void setMinuteOpen(int minuteOpen) {
+    public void setMinuteOpen(BigDecimal minuteOpen) {
         this.minuteOpen = minuteOpen;
     }
 
-    public int getMinuteHigh() {
+    public BigDecimal getMinuteHigh() {
         return minuteHigh;
     }
 
-    public void setMinuteHigh(int minuteHigh) {
+    public void setMinuteHigh(BigDecimal minuteHigh) {
         this.minuteHigh = minuteHigh;
     }
 
-    public int getMinuteLow() {
+    public BigDecimal getMinuteLow() {
         return minuteLow;
     }
 
-    public void setMinuteLow(int minuteLow) {
+    public void setMinuteLow(BigDecimal minuteLow) {
         this.minuteLow = minuteLow;
     }
 
-    public int getIntminuteClose() {
+    public BigDecimal getIntminuteClose() {
         return intminuteClose;
     }
 
-    public void setIntminuteClose(int intminuteClose) {
+    public void setIntminuteClose(BigDecimal intminuteClose) {
         this.intminuteClose = intminuteClose;
     }
 
-    public int getMinuteVolume() {
+    public Double getMinuteVolume() {
         return minuteVolume;
     }
 
-    public void setMinuteVolume(int minuteVolume) {
+    public void setMinuteVolume(Double minuteVolume) {
         this.minuteVolume = minuteVolume;
     }
 
     @Override
     public String toString() {
-        return "AAPL{" +
+        return "IntradayBar{" +
                 "id=" + id +
                 ", timePoint='" + timePoint + '\'' +
                 ", minuteOpen=" + minuteOpen +

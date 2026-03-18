@@ -1,34 +1,34 @@
 package com.summer.stockproject.service;
 
-import com.summer.stockproject.dao.AAPLRepository;
-import com.summer.stockproject.entity.AAPL;
+import com.summer.stockproject.dao.IntradayBarRepository;
+import com.summer.stockproject.entity.IntradayBar;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public class AAPLWithMilli implements AAPLService{
+public class AAPLWithMilli implements IntradayBarService{
 
-    private AAPLRepository aaplRepository;
+    private IntradayBarRepository intradayBarRepository;
     @Override
-    public List<AAPL> findAll() {
+    public List<IntradayBar> findAll() {
         return null;
     }
 
     @Override
-    public AAPL getByTimePoint(LocalDateTime timepoint) {
+    public IntradayBar getByTimePoint(LocalDateTime timepoint) {
         return null;
     }
 
     @Override
-    public AAPL getById(int theid) {
+    public IntradayBar getById(int theid) {
         return null;
     }
 
     @Override
-    public List<AAPL> findByStartDateBetween(Timestamp start, Timestamp end) {
+    public List<IntradayBar> findByStartDateBetween(Timestamp start, Timestamp end) {
 
-        List<AAPL> temp = aaplRepository.findByStartDateBetween(start, end);
+        List<IntradayBar> temp = intradayBarRepository.findByStartDateBetween(start, end);
 
         for (int i = 0; i < temp.size(); i++ ) {
             long time = temp.get(i).getTimePoint().getTime();
@@ -42,12 +42,17 @@ public class AAPLWithMilli implements AAPLService{
     }
 
     @Override
-    public List<AAPL> findBySingleDate(Timestamp date) {
+    public List<IntradayBar> findBySingleDate(Timestamp date) {
         return null;
     }
 
     @Override
-    public List<AAPL> universalfind(String tablename, Timestamp start, Timestamp end) {
+    public List<IntradayBar> universalfind(String tablename, Timestamp start, Timestamp end) {
+        return null;
+    }
+
+    @Override
+    public Timestamp getLatestTimePoint(String tablename) {
         return null;
     }
 }

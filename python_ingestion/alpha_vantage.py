@@ -1,0 +1,198 @@
+"""
+Alpha Vantage API client for Apple news ingestion.
+"""
+import logging
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
+
+import requests
+
+from .config import AlphaVantageConfig, load_config
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class AlphaVantageNewsItem:
+    """Data model for a single Alpha Vantage news item."""
+    symbol: str
+    title: str
+    summary: str
+    url: str
+    source: str
+    published_at: str
+    relevance_score: Optional[float] = None
+    raw_ticker_match: bool = False
+
+
+class AlphaVantageClient:
+    """Client for interacting with Alpha Vantage endpoints."""
+
+    def __init__(self, config: Optional[AlphaVantageConfig] = None):
+        if config is None:
+            config = load_config().alpha_vantage
+        self.config = config
+
+    @staticmethod
+    def _safe_float(value: Any) -> Optional[float]:
+        try:
+            if value is None or value == "":
+                return None
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _contains_apple_title_text(title: str) -> bool:
+        text = title.lower()
+        keywords = [
+            "apple",
+            "aapl",
+            "iphone",
+            "ipad",
+            "mac",
+            "ios",
+            "tim cook",
+            "apple inc",
+        ]
+        return any(keyword in text for keyword in keywords)
+
+    @staticmethod
+    def _contains_etf_style_title_text(title: str) -> bool:
+        text = title.lower()
+        etf_style_keywords = [
+            "etf",
+            "fund",
+            "watchlist",
+            "portfolio",
+            "holdings",
+            "yield",
+            "dividend",
+            "buy sell or hold",
+        ]
+        return any(keyword in text for keyword in etf_style_keywords)
+
+    def _extract_ticker_relevance(self, raw: Dict[str, Any], ticker: str) -> Tuple[bool, Optional[float]]:
+        ticker_sentiment = raw.get("ticker_sentiment", [])
+        if not isinstance(ticker_sentiment, list):
+            return False, None
+
+        target = ticker.upper()
+        best_score: Optional[float] = None
+        matched = False
+
+        for row in ticker_sentiment:
+            if not isinstance(row, Dict):
+                continue
+            symbol = str(row.get("ticker", "")).upper().strip()
+            if symbol != target:
+                continue
+            matched = True
+            score = self._safe_float(row.get("relevance_score"))
+            if score is None:
+                continue
+            if best_score is None or score > best_score:
+                best_score = score
+
+        return matched, best_score
+
+    def get_news_sentiment(self, ticker: str, limit: int = 20) -> List[AlphaVantageNewsItem]:
+        """
+        Fetch NEWS_SENTIMENT for a single ticker.
+        """
+        if not self.config.api_key:
+            raise ValueError(
+                "Missing ALPHA_VANTAGE_API_KEY. Set it in python_ingestion/.env before running ingestion."
+            )
+
+        params = {
+            "function": "NEWS_SENTIMENT",
+            "tickers": ticker,
+            "sort": "LATEST",
+            "limit": max(1, min(limit, 1000)),
+            "apikey": self.config.api_key,
+        }
+
+        try:
+            response = requests.get(self.config.base_url, params=params, timeout=self.config.timeout)
+            response.raise_for_status()
+            data = response.json()
+        except requests.RequestException as e:
+            logger.error("Alpha Vantage request failed: %s", e)
+            raise
+        except ValueError as e:
+            logger.error("Alpha Vantage response is not valid JSON: %s", e)
+            raise
+
+        if "Error Message" in data:
+            raise ValueError(f"Alpha Vantage error: {data['Error Message']}")
+        if "Note" in data:
+            raise ValueError(f"Alpha Vantage note: {data['Note']}")
+        if "Information" in data:
+            raise ValueError(f"Alpha Vantage information: {data['Information']}")
+
+        feed = data.get("feed", [])
+        result: List[AlphaVantageNewsItem] = []
+
+        structured_and_text_kept = 0
+        dropped_missing_aapl_match = 0
+        dropped_missing_apple_text = 0
+        dropped_etf_style_title = 0
+
+        for raw in feed:
+            if not isinstance(raw, Dict):
+                continue
+
+            title = str(raw.get("title", "")).strip()
+            url = str(raw.get("url", "")).strip()
+            published_at = str(raw.get("time_published", "")).strip()
+            if not title or not url or not published_at:
+                continue
+
+            summary = str(raw.get("summary", "")).strip()
+            source = str(raw.get("source", "")).strip()
+            raw_ticker_match, relevance_score = self._extract_ticker_relevance(raw, ticker)
+            apple_title_match = self._contains_apple_title_text(title)
+            etf_style_title_match = self._contains_etf_style_title_text(title)
+
+            # Strict rule for Apple-focused MVP:
+            # Keep only if BOTH are true:
+            # 1) structured ticker relevance explicitly contains AAPL
+            # 2) title contains Apple-focused keywords
+            if not raw_ticker_match:
+                dropped_missing_aapl_match += 1
+                continue
+
+            if not apple_title_match:
+                if etf_style_title_match:
+                    dropped_etf_style_title += 1
+                dropped_missing_apple_text += 1
+                continue
+
+            structured_and_text_kept += 1
+
+            result.append(
+                AlphaVantageNewsItem(
+                    symbol=ticker,
+                    title=title,
+                    summary=summary,
+                    url=url,
+                    source=source,
+                    published_at=published_at,
+                    relevance_score=relevance_score,
+                    raw_ticker_match=raw_ticker_match,
+                )
+            )
+
+            if len(result) >= limit:
+                break
+
+        logger.info(
+            "AAPL relevance filtering: kept=%s (structured+aapl_title), dropped_missing_aapl_match=%s, dropped_missing_apple_title=%s, dropped_etf_style_title=%s, raw_feed=%s",
+            len(result),
+            dropped_missing_aapl_match,
+            dropped_missing_apple_text,
+            dropped_etf_style_title,
+            len(feed),
+        )
+        return result

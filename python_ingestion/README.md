@@ -1,6 +1,6 @@
 # Python Stock Data Ingestion
 
-Python implementation for collecting stock data from TwelveData API and storing it in MySQL database.
+Python implementation for collecting stock data and company news into MySQL database.
 
 ## Project Structure
 
@@ -11,6 +11,7 @@ python_ingestion/
 ├── symbols.py             # Stock symbol list management
 ├── db.py                  # MySQL connection pooling and operations
 ├── twelve_data.py         # TwelveData API client
+├── alpha_vantage.py       # Alpha Vantage API client (Apple news)
 ├── main.py                # Main entry point with scheduler
 ├── jobs/
 │   ├── __init__.py
@@ -48,6 +49,11 @@ TWELVE_DATA_API_KEY=your_api_key_here
 API_BASE_URL=https://api.twelvedata.com
 API_TIMEOUT=30
 API_MAX_RETRIES=3
+
+# Alpha Vantage API Configuration (for Apple news ingestion)
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_api_key_here
+ALPHA_VANTAGE_BASE_URL=https://www.alphavantage.co/query
+ALPHA_VANTAGE_TIMEOUT=30
 ```
 
 ### 3. Database Schema
@@ -88,6 +94,21 @@ python -m python_ingestion.jobs.historical MSFT \
   --end-date 2022-07-15 \
   --table-name amazon
 ```
+
+### Apple News Ingestion (Phase 1 MVP)
+
+Run one-time Apple company news ingestion (AAPL only):
+
+```bash
+python -m python_ingestion.jobs.apple_news --limit 20
+```
+
+Notes:
+- This job only ingests `AAPL` company news.
+- It uses Alpha Vantage `NEWS_SENTIMENT` endpoint with ticker `AAPL`.
+- The `ALPHA_VANTAGE_API_KEY` must be set in `python_ingestion/.env`.
+- The `company_news` table is created automatically if it does not exist.
+- Deduplication is handled by URL hash with unique key `(symbol, url_hash)`.
 
 ## Features
 

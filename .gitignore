@@ -268,3 +268,19 @@ secrets/
 application-local.properties
 application-dev.properties
 
+
+# local secrets
+.env
+*.env
+python_ingestion/.env
+
+# legacy sensitive files
+collecting_data_using_js/
+
+# local secrets
+.env
+*.env
+python_ingestion/.env
+
+# legacy sensitive folder
+collecting_data_using_js/

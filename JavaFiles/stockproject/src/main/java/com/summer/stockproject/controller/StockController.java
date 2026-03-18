@@ -1,8 +1,9 @@
 package com.summer.stockproject.controller;
 
-import com.summer.stockproject.entity.AAPL;
-import com.summer.stockproject.helperfunction.chartjsData;
-import com.summer.stockproject.service.AAPLService;
+import com.summer.stockproject.entity.IntradayBar;
+import com.summer.stockproject.helperfunction.StockChartData;
+import com.summer.stockproject.service.CompanyNewsService;
+import com.summer.stockproject.service.IntradayBarService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -14,19 +15,23 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Date;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/stock")
 public class StockController {
     
-    private AAPLService aaplService;
+    private final IntradayBarService intradayBarService;
+    private final CompanyNewsService companyNewsService;
     
     @Autowired
-    public StockController(AAPLService aaplService) {
-        this.aaplService = aaplService;
+    public StockController(IntradayBarService intradayBarService, CompanyNewsService companyNewsService) {
+        this.intradayBarService = intradayBarService;
+        this.companyNewsService = companyNewsService;
     }
     
     /**
@@ -54,13 +59,15 @@ public class StockController {
             normalizedSymbol = "KEY1";
         }
         
-        // Default date: if not specified, use the most recent day's data
-        String startDateStr = start != null ? start.replace("T", " ").replace("/", "-") : "2025-11-11 09:30:00";
-        String endDateStr = end != null ? end.replace("T", " ").replace("/", "-") : "2025-11-11 16:00:00";
+        DefaultRange defaultRange = getDefaultRangeForSymbol(normalizedSymbol);
+        
+        // Default date: if not specified, use the most recent day's data (or today if no data)
+        String startDateStr = start != null ? start.replace("T", " ").replace("/", "-") : defaultRange.startDisplay;
+        String endDateStr = end != null ? end.replace("T", " ").replace("/", "-") : defaultRange.endDisplay;
         
         // Parse date - supports multiple formats
-        Date startDate = parseDate(startDateStr, true);  // true means start date
-        Date endDate = parseDate(endDateStr, false);     // false means end date
+        Date startDate = parseDate(startDateStr, true, defaultRange);  // true means start date
+        Date endDate = parseDate(endDateStr, false, defaultRange);     // false means end date
         Timestamp sqlStart = new Timestamp(startDate.getTime());
         Timestamp sqlEnd = new Timestamp(endDate.getTime());
         
@@ -70,10 +77,10 @@ public class StockController {
         endDateStr = displayFormat.format(endDate);
         
         // Use universalfind method to query any stock table (with date range)
-        List<AAPL> filteredData = aaplService.universalfind(normalizedSymbol, sqlStart, sqlEnd);
+        List<IntradayBar> filteredData = intradayBarService.universalfind(normalizedSymbol, sqlStart, sqlEnd);
         
         // Prepare chart data
-        chartjsData listData = new chartjsData(filteredData);
+        StockChartData listData = new StockChartData(filteredData);
         
         model.addAttribute("apple", listData.getPrice());
         model.addAttribute("timepoint", listData.getDateInSecond());
@@ -81,7 +88,11 @@ public class StockController {
         model.addAttribute("startDate", startDateStr);
         model.addAttribute("endDate", endDateStr);
         model.addAttribute("dataCount", filteredData.size());
-        model.addAttribute("hasData", filteredData.size() > 0);
+        model.addAttribute("hasData", !filteredData.isEmpty());
+        model.addAttribute("showAppleNews", normalizedSymbol.equals("AAPL"));
+        if (normalizedSymbol.equals("AAPL")) {
+            model.addAttribute("appleNews", companyNewsService.getRecentAppleNews());
+        }
         
         return "graphpages/graph-page";
     }
@@ -91,15 +102,9 @@ public class StockController {
      * @param dateStr Date string
      * @param isStartDate true means start date (default 09:30:00), false means end date (default 16:00:00)
      */
-    private Date parseDate(String dateStr, boolean isStartDate) {
-        String defaultDate = isStartDate ? "2025-11-11 09:30:00" : "2025-11-11 16:00:00";
-        
+    private Date parseDate(String dateStr, boolean isStartDate, DefaultRange defaultRange) {
         if (dateStr == null || dateStr.trim().isEmpty()) {
-            try {
-                return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(defaultDate);
-            } catch (ParseException e) {
-                return new Date();
-            }
+            return isStartDate ? new Date(defaultRange.start.getTime()) : new Date(defaultRange.end.getTime());
         }
         
         // Normalize date string (use - as separator)
@@ -120,9 +125,10 @@ public class StockController {
                 
                 // If only date, add default time
                 if (pattern.equals("yyyy-MM-dd")) {
-                    String timeStr = isStartDate ? " 09:30:00" : " 16:00:00";
-                    String fullDateStr = new SimpleDateFormat("yyyy-MM-dd").format(date) + timeStr;
-                    return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(fullDateStr);
+                    LocalDate localDate = LocalDate.parse(new SimpleDateFormat("yyyy-MM-dd").format(date));
+                    LocalTime time = isStartDate ? defaultRange.startTime : defaultRange.endTime;
+                    LocalDateTime dateTime = LocalDateTime.of(localDate, time);
+                    return Timestamp.valueOf(dateTime);
                 }
                 
                 // If no seconds, add seconds
@@ -138,11 +144,7 @@ public class StockController {
         }
         
         // If all formats fail, return default date
-        try {
-            return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(defaultDate);
-        } catch (ParseException e) {
-            return new Date();
-        }
+        return isStartDate ? new Date(defaultRange.start.getTime()) : new Date(defaultRange.end.getTime());
     }
     
     /**
@@ -150,6 +152,11 @@ public class StockController {
      */
     @GetMapping("/list")
     public String listStocks(Model model) {
+        DefaultRange defaultRange = getDefaultRangeForSymbol("AAPL");
+        model.addAttribute("defaultStartLocal", defaultRange.startLocal);
+        model.addAttribute("defaultEndLocal", defaultRange.endLocal);
+        model.addAttribute("defaultStartDisplay", defaultRange.startDisplay);
+        model.addAttribute("defaultEndDisplay", defaultRange.endDisplay);
         return "graphpages/stock-list";
     }
     
@@ -173,6 +180,51 @@ public class StockController {
         }
         
         return "redirect:" + url.toString();
+    }
+
+    private DefaultRange getDefaultRangeForSymbol(String normalizedSymbol) {
+        Timestamp latest = null;
+        try {
+            latest = intradayBarService.getLatestTimePoint(normalizedSymbol);
+        } catch (Exception ignored) {
+            // Fallback to today if table does not exist or query fails
+        }
+        
+        LocalDate date = latest != null
+                ? latest.toLocalDateTime().toLocalDate()
+                : LocalDate.now();
+        
+        LocalTime startTime = LocalTime.of(9, 30);
+        LocalTime endTime = LocalTime.of(16, 0);
+        
+        LocalDateTime startDateTime = LocalDateTime.of(date, startTime);
+        LocalDateTime endDateTime = LocalDateTime.of(date, endTime);
+        
+        SimpleDateFormat displayFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        SimpleDateFormat inputFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm");
+        
+        DefaultRange range = new DefaultRange();
+        range.start = Timestamp.valueOf(startDateTime);
+        range.end = Timestamp.valueOf(endDateTime);
+        range.startTime = startTime;
+        range.endTime = endTime;
+        range.startDisplay = displayFormat.format(range.start);
+        range.endDisplay = displayFormat.format(range.end);
+        range.startLocal = inputFormat.format(range.start);
+        range.endLocal = inputFormat.format(range.end);
+        
+        return range;
+    }
+
+    private static class DefaultRange {
+        private Timestamp start;
+        private Timestamp end;
+        private LocalTime startTime;
+        private LocalTime endTime;
+        private String startDisplay;
+        private String endDisplay;
+        private String startLocal;
+        private String endLocal;
     }
 }
 

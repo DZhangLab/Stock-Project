@@ -15,7 +15,7 @@
 <body>
 <div class="container">
     <h2>📊 Stock Chart: <span th:text="${symbol}">AAPL</span></h2>
-    <p>Date Range: <span th:text="${startDate}">2025-11-11 09:30:00</span> to <span th:text="${endDate}">2025-11-11 16:00:00</span></p>
+    <p>Date Range: <span th:text="${startDate}">N/A</span> to <span th:text="${endDate}">N/A</span></p>
     <a th:href="@{/stock/list}">← Back to Selection</a>
     <a th:href="@{/}" style="margin-left: 10px;">Home</a>
     
@@ -40,6 +40,28 @@
             The chart may not display properly. Try selecting a date with more data, or expand the date range.
         </div>
         <div id="chartContainer" style="height: 370px; width: 100%;"></div>
+    </div>
+
+    <div th:if="${showAppleNews}" style="margin-top: 30px;">
+        <h3>Apple News (AAPL)</h3>
+
+        <div th:if="${appleNews == null || #lists.isEmpty(appleNews)}" class="alert alert-info">
+            No Apple news found yet. Please run manual ingestion.
+        </div>
+
+        <div th:if="${appleNews != null && !#lists.isEmpty(appleNews)}" class="list-group">
+            <div class="list-group-item" th:each="news : ${appleNews}">
+                <h4 class="list-group-item-heading">
+                    <a th:href="${news.url}" th:text="${news.title}" target="_blank" rel="noopener noreferrer">News title</a>
+                </h4>
+                <p class="text-muted" style="margin-bottom: 8px;">
+                    <span th:text="${news.source}">Source</span>
+                    |
+                    <span th:text="${news.publishedAt}">Published time</span>
+                </p>
+                <p class="list-group-item-text" th:text="${news.summary}">News summary</p>
+            </div>
+        </div>
     </div>
 
 </div>

@@ -37,10 +37,19 @@ class APIConfig:
 
 
 @dataclass
+class AlphaVantageConfig:
+    """Alpha Vantage API configuration dataclass."""
+    api_key: str
+    base_url: str = "https://www.alphavantage.co/query"
+    timeout: int = 30
+
+
+@dataclass
 class Config:
     """Main configuration dataclass."""
     database: DatabaseConfig
     api: APIConfig
+    alpha_vantage: AlphaVantageConfig
 
 
 def load_config() -> Config:
@@ -67,6 +76,12 @@ def load_config() -> Config:
         timeout=int(os.getenv("API_TIMEOUT", "30")),
         max_retries=int(os.getenv("API_MAX_RETRIES", "3"))
     )
-    
-    return Config(database=db_config, api=api_config)
+
+    alpha_vantage_config = AlphaVantageConfig(
+        api_key=os.getenv("ALPHA_VANTAGE_API_KEY", ""),
+        base_url=os.getenv("ALPHA_VANTAGE_BASE_URL", "https://www.alphavantage.co/query"),
+        timeout=int(os.getenv("ALPHA_VANTAGE_TIMEOUT", "30"))
+    )
+
+    return Config(database=db_config, api=api_config, alpha_vantage=alpha_vantage_config)
 

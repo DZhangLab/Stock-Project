@@ -113,51 +113,8 @@ for (var i = 0; i < timepoint.length; i++) {
         from: minDate,
         to: maxDate
       },
-      buttons: [
-        {
-          range: 1,
-          rangeType: "minute",
-          label: "1m"
-        },
-        {
-          range: 3,
-          rangeType: "minute",
-          label: "3m"
-        },
-        {
-          range: 6,
-          rangeType: "minute",
-          label: "6m"
-        },
-        {
-          range: 1,
-          rangeType: "day",
-          label: "1d"
-        },
-        {
-          range: 3,
-          rangeType: "month",
-          label: "3m"
-        },
-        {
-          range: 6,
-          rangeType: "month",
-          label: "6m"
-        },
-        {
-          rangeType: "ytd",
-          label: "YTD"
-        },
-        {
-          range: 1,
-          rangeType: "year",
-          label: "1y"
-        },
-        {
-          rangeType: "all",
-          label: "All"
-        }
-      ]
+      // Intraday page: keep From/To inputs only, remove range buttons.
+      buttons: []
     },
     charts: [{
       axisY: {

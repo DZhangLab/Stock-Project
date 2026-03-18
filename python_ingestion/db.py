@@ -155,6 +155,7 @@ class DatabaseManager:
             minuteClose DECIMAL(18, 4),
             minuteVolume DOUBLE,
             PRIMARY KEY (id),
+            UNIQUE KEY uq_timepoint (timePoint),
             INDEX idx_timepoint (timePoint)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         """
@@ -165,6 +166,87 @@ class DatabaseManager:
             return True
         except Error as e:
             logger.error(f"Error creating table {table_name}: {e}")
+            return False
+
+    def ensure_company_news_table(self) -> bool:
+        """
+        Ensure company_news table exists.
+        This table is used by the Apple news MVP ingestion flow.
+
+        Returns:
+            bool: True if table exists or was created successfully
+        """
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS company_news (
+            id BIGINT NOT NULL AUTO_INCREMENT,
+            symbol VARCHAR(16) NOT NULL,
+            title VARCHAR(512) NOT NULL,
+            summary TEXT NULL,
+            url VARCHAR(1024) NOT NULL,
+            url_hash CHAR(64) NOT NULL,
+            source VARCHAR(128) NULL,
+            published_at DATETIME NOT NULL,
+            ingestion_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_company_news_symbol_url_hash (symbol, url_hash),
+            INDEX idx_company_news_symbol_published_at (symbol, published_at DESC)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        """
+
+        try:
+            self.execute(create_table_sql)
+
+            # Minimal forward-compatible migration for existing tables.
+            column_rows = self.execute(
+                """
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = %s
+                  AND table_name = 'company_news'
+                  AND column_name = 'url_hash'
+                LIMIT 1
+                """,
+                (self.config.database,)
+            ) or []
+            if not column_rows:
+                self.execute("ALTER TABLE company_news ADD COLUMN url_hash CHAR(64) NULL AFTER url")
+            self.execute("UPDATE company_news SET url_hash = SHA2(url, 256) WHERE url_hash IS NULL")
+            self.execute("ALTER TABLE company_news MODIFY COLUMN url_hash CHAR(64) NOT NULL")
+
+            old_unique_rows = self.execute(
+                """
+                SELECT 1
+                FROM information_schema.statistics
+                WHERE table_schema = %s
+                  AND table_name = 'company_news'
+                  AND index_name = 'uq_company_news_symbol_url'
+                LIMIT 1
+                """,
+                (self.config.database,)
+            ) or []
+            if old_unique_rows:
+                self.execute("ALTER TABLE company_news DROP INDEX uq_company_news_symbol_url")
+
+            new_unique_rows = self.execute(
+                """
+                SELECT 1
+                FROM information_schema.statistics
+                WHERE table_schema = %s
+                  AND table_name = 'company_news'
+                  AND index_name = 'uq_company_news_symbol_url_hash'
+                LIMIT 1
+                """,
+                (self.config.database,)
+            ) or []
+            if not new_unique_rows:
+                self.execute(
+                    "ALTER TABLE company_news ADD UNIQUE KEY uq_company_news_symbol_url_hash (symbol, url_hash)"
+                )
+
+            logger.info("Table company_news ensured")
+            return True
+        except Error as e:
+            logger.error(f"Error creating table company_news: {e}")
             return False
     
     def close_pool(self):

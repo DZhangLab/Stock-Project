@@ -21,14 +21,14 @@
         
         <div class="form-group">
             <label>Start Date and Time:</label>
-            <input type="datetime-local" name="start" class="form-control" value="2025-11-11T09:30" step="60">
-            <small class="form-text text-muted">Format: YYYY-MM-DD HH:MM (e.g., 2025-11-11 09:30)</small>
+            <input type="datetime-local" name="start" class="form-control" th:value="${defaultStartLocal}" step="60">
+            <small class="form-text text-muted">Format: YYYY-MM-DD HH:MM (e.g., 2025-03-17 09:30)</small>
         </div>
         
         <div class="form-group">
             <label>End Date and Time:</label>
-            <input type="datetime-local" name="end" class="form-control" value="2025-11-11T16:00" step="60">
-            <small class="form-text text-muted">Format: YYYY-MM-DD HH:MM (e.g., 2025-11-11 16:00)</small>
+            <input type="datetime-local" name="end" class="form-control" th:value="${defaultEndLocal}" step="60">
+            <small class="form-text text-muted">Format: YYYY-MM-DD HH:MM (e.g., 2025-03-17 16:00)</small>
         </div>
         
         <button type="submit" class="btn btn-primary">View Chart</button>
@@ -46,16 +46,16 @@
     
     <h3>Instructions</h3>
     <div class="alert alert-info">
-        <strong>📅 Available Date Range:</strong>
-        <ul style="margin-bottom: 0;">
-            <li><strong>2025-11-07</strong> - Data available</li>
-            <li><strong>2025-11-10</strong> - Data available (Limited: only 3 records for some stocks)</li>
-            <li><strong>2025-10-02</strong> - More data available (39+ records for most stocks)</li>
-        </ul>
-        <p style="margin-top: 10px; margin-bottom: 0;"><small>Note: 2025-11-10 has very limited data (only 3 records for META/FB). For better charts, try dates with more data like 2025-10-02.</small></p>
+        <strong>📅 Default Date Range:</strong>
+        <p style="margin-top: 10px; margin-bottom: 0;">
+            <small>Using latest available trading day when dates are not provided.</small>
+        </p>
+        <p style="margin-top: 5px; margin-bottom: 0;">
+            <small>Current default: <span th:text="${defaultStartDisplay}">N/A</span> to <span th:text="${defaultEndDisplay}">N/A</span></small>
+        </p>
     </div>
     <ul>
-        <li>Click stock symbol links directly to use default date (2025-11-11)</li>
+        <li>Click stock symbol links directly to use the default date range</li>
         <li>Or use the form to select a custom date range</li>
         <li>Date format: YYYY-MM-DD HH:MM (e.g., 2025-11-11 09:30)</li>
         <li>If the selected date has no data, a friendly message will be displayed</li>
