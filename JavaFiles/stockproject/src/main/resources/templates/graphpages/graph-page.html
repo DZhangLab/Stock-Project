@@ -43,6 +43,41 @@
     </div>
 
     <div th:if="${showAppleNews}" style="margin-top: 30px;">
+        <h3>Latest Quarterly Snapshot</h3>
+        <div class="panel panel-default" style="margin-bottom: 24px;">
+            <div class="panel-body">
+                <p id="quarterlySnapshotStatus" class="text-muted" style="margin-bottom: 12px;">
+                    Loading latest quarterly snapshot...
+                </p>
+                <div id="quarterlySnapshotContent" style="display: none;">
+                    <div class="row" style="margin-bottom: 8px;">
+                        <div class="col-sm-4"><strong>Fiscal Period</strong></div>
+                        <div class="col-sm-8" id="snapshotFiscalPeriod">N/A</div>
+                    </div>
+                    <div class="row" style="margin-bottom: 8px;">
+                        <div class="col-sm-4"><strong>Report Date</strong></div>
+                        <div class="col-sm-8" id="snapshotReportedDate">N/A</div>
+                    </div>
+                    <div class="row" style="margin-bottom: 8px;">
+                        <div class="col-sm-4"><strong>Total Revenue</strong></div>
+                        <div class="col-sm-8" id="snapshotTotalRevenue">N/A</div>
+                    </div>
+                    <div class="row" style="margin-bottom: 8px;">
+                        <div class="col-sm-4"><strong>Reported EPS</strong></div>
+                        <div class="col-sm-8" id="snapshotReportedEps">N/A</div>
+                    </div>
+                    <div class="row" style="margin-bottom: 8px;">
+                        <div class="col-sm-4"><strong>Net Income</strong></div>
+                        <div class="col-sm-8" id="snapshotNetIncome">N/A</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-4"><strong>Surprise %</strong></div>
+                        <div class="col-sm-8" id="snapshotSurprisePercentage">N/A</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <h3>Apple News (AAPL)</h3>
 
         <div th:if="${appleNews == null || #lists.isEmpty(appleNews)}" class="alert alert-info">
@@ -77,6 +112,108 @@ if (!hasData || !apple || apple.length === 0) {
 } else {
     console.log("Data count: " + apple.length);
 }
+</script>
+<script type="text/javascript">
+(function() {
+    if (!symbol || symbol.toUpperCase() !== "AAPL") {
+        return;
+    }
+
+    function safeText(value) {
+        if (value === null || value === undefined || value === "") {
+            return "N/A";
+        }
+        return String(value);
+    }
+
+    function formatMoney(value) {
+        if (value === null || value === undefined || value === "") {
+            return "N/A";
+        }
+        var num = Number(value);
+        if (isNaN(num)) {
+            return "N/A";
+        }
+        return "$" + num.toLocaleString("en-US", { maximumFractionDigits: 2 });
+    }
+
+    function formatEps(value) {
+        if (value === null || value === undefined || value === "") {
+            return "N/A";
+        }
+        var num = Number(value);
+        if (isNaN(num)) {
+            return "N/A";
+        }
+        return num.toFixed(2);
+    }
+
+    function formatPercent(value) {
+        if (value === null || value === undefined || value === "") {
+            return "N/A";
+        }
+        var num = Number(value);
+        if (isNaN(num)) {
+            return "N/A";
+        }
+        return num.toFixed(2) + "%";
+    }
+
+    function setSnapshotText(id, text) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.textContent = text;
+        }
+    }
+
+    function showFallback(message) {
+        var statusEl = document.getElementById("quarterlySnapshotStatus");
+        var contentEl = document.getElementById("quarterlySnapshotContent");
+        if (statusEl) {
+            statusEl.textContent = message;
+            statusEl.className = "text-muted";
+        }
+        if (contentEl) {
+            contentEl.style.display = "none";
+        }
+    }
+
+    function showSnapshot(data) {
+        var statusEl = document.getElementById("quarterlySnapshotStatus");
+        var contentEl = document.getElementById("quarterlySnapshotContent");
+        if (statusEl) {
+            statusEl.style.display = "none";
+        }
+        if (contentEl) {
+            contentEl.style.display = "block";
+        }
+
+        setSnapshotText("snapshotFiscalPeriod", safeText(data.fiscalPeriodLabel));
+        setSnapshotText("snapshotReportedDate", safeText(data.reportedDate));
+        setSnapshotText("snapshotTotalRevenue", formatMoney(data.totalRevenue));
+        setSnapshotText("snapshotReportedEps", formatEps(data.reportedEps));
+        setSnapshotText("snapshotNetIncome", formatMoney(data.netIncome));
+        setSnapshotText("snapshotSurprisePercentage", formatPercent(data.surprisePercentage));
+    }
+
+    fetch("/api/financials/quarterly/latest?symbol=AAPL")
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error("no quarterly snapshot");
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            if (!data || typeof data !== "object") {
+                showFallback("Quarterly snapshot is not available yet.");
+                return;
+            }
+            showSnapshot(data);
+        })
+        .catch(function() {
+            showFallback("Quarterly snapshot is not available yet. Please run ingestion and try again.");
+        });
+})();
 </script>
 <script type="text/javascript"  src="https://canvasjs.com/assets/script/jquery-1.11.1.min.js"></script>
 <script type="text/javascript" src="https://canvasjs.com/assets/script/canvasjs.stock.min.js"></script>

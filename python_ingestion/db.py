@@ -248,6 +248,47 @@ class DatabaseManager:
         except Error as e:
             logger.error(f"Error creating table company_news: {e}")
             return False
+
+    def ensure_quarterly_reporting_snapshot_table(self) -> bool:
+        """
+        Ensure quarterly_reporting_snapshot table exists.
+
+        Returns:
+            bool: True if table exists or was created successfully
+        """
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS quarterly_reporting_snapshot (
+            id BIGINT NOT NULL AUTO_INCREMENT,
+            symbol VARCHAR(16) NOT NULL,
+            fiscal_date_ending DATE NOT NULL,
+            reported_date DATE NULL,
+            fiscal_period_label VARCHAR(32) NULL,
+            reported_currency VARCHAR(16) NULL,
+            total_revenue DECIMAL(20, 2) NULL,
+            gross_profit DECIMAL(20, 2) NULL,
+            operating_income DECIMAL(20, 2) NULL,
+            net_income DECIMAL(20, 2) NULL,
+            reported_eps DECIMAL(20, 4) NULL,
+            estimated_eps DECIMAL(20, 4) NULL,
+            surprise DECIMAL(20, 4) NULL,
+            surprise_percentage DECIMAL(10, 4) NULL,
+            source VARCHAR(64) NOT NULL DEFAULT 'ALPHA_VANTAGE',
+            raw_payload_json JSON NULL,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_quarterly_reporting_snapshot_symbol_fiscal_date (symbol, fiscal_date_ending),
+            INDEX idx_quarterly_reporting_snapshot_symbol_updated (symbol, updated_at DESC)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        """
+
+        try:
+            self.execute(create_table_sql)
+            logger.info("Table quarterly_reporting_snapshot ensured")
+            return True
+        except Error as e:
+            logger.error(f"Error creating table quarterly_reporting_snapshot: {e}")
+            return False
     
     def close_pool(self):
         """Close all connections in the pool."""
