@@ -57,17 +57,6 @@ class TimeSeriesPoint:
     volume: float
 
 
-@dataclass
-class NewsItem:
-    """Data model for a single company news item."""
-    symbol: str
-    title: str
-    summary: str
-    url: str
-    source: str
-    published_at: str
-
-
 class TwelveDataClient:
     """Client for interacting with TwelveData API."""
     
@@ -290,68 +279,6 @@ class TwelveDataClient:
         
         return time_series
 
-    def get_news(self, symbol: str, limit: int = 20) -> List[NewsItem]:
-        """
-        Get company news for a stock symbol.
-
-        Args:
-            symbol: Stock symbol (e.g., "AAPL")
-            limit: Maximum number of news items to fetch
-
-        Returns:
-            List[NewsItem]: List of company news items
-        """
-        params = {
-            "symbol": symbol,
-            "outputsize": limit
-        }
-
-        data = self._make_request("news", params)
-
-        if isinstance(data, list):
-            raw_items = data
-        else:
-            raw_items = data.get("data") or data.get("news") or []
-
-        news_items: List[NewsItem] = []
-        for item in raw_items:
-            if not isinstance(item, dict):
-                continue
-
-            title = str(item.get("title", "")).strip()
-            url = str(item.get("url", "")).strip()
-
-            if not title or not url:
-                continue
-
-            summary = str(item.get("description") or item.get("summary") or "").strip()
-            source = str(item.get("source") or item.get("site") or "").strip()
-            published_at = str(
-                item.get("datetime")
-                or item.get("published_at")
-                or item.get("published")
-                or ""
-            ).strip()
-
-            if not published_at:
-                continue
-
-            news_items.append(
-                NewsItem(
-                    symbol=symbol,
-                    title=title,
-                    summary=summary,
-                    url=url,
-                    source=source,
-                    published_at=published_at
-                )
-            )
-
-            if len(news_items) >= limit:
-                break
-
-        return news_items
-    
     @staticmethod
     def _safe_float(value: Any) -> Optional[float]:
         """Safely convert value to float."""

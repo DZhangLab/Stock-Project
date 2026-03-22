@@ -96,25 +96,17 @@ class AlphaVantageClient:
 
         return matched, best_score
 
-    def get_news_sentiment(self, ticker: str, limit: int = 20) -> List[AlphaVantageNewsItem]:
-        """
-        Fetch NEWS_SENTIMENT for a single ticker.
-        """
+    def _request(self, params: Dict[str, Any]) -> Dict[str, Any]:
         if not self.config.api_key:
             raise ValueError(
                 "Missing ALPHA_VANTAGE_API_KEY. Set it in python_ingestion/.env before running ingestion."
             )
 
-        params = {
-            "function": "NEWS_SENTIMENT",
-            "tickers": ticker,
-            "sort": "LATEST",
-            "limit": max(1, min(limit, 1000)),
-            "apikey": self.config.api_key,
-        }
+        request_params = dict(params)
+        request_params["apikey"] = self.config.api_key
 
         try:
-            response = requests.get(self.config.base_url, params=params, timeout=self.config.timeout)
+            response = requests.get(self.config.base_url, params=request_params, timeout=self.config.timeout)
             response.raise_for_status()
             data = response.json()
         except requests.RequestException as e:
@@ -124,12 +116,47 @@ class AlphaVantageClient:
             logger.error("Alpha Vantage response is not valid JSON: %s", e)
             raise
 
+        if not isinstance(data, dict):
+            raise ValueError("Alpha Vantage response has invalid format")
+
         if "Error Message" in data:
             raise ValueError(f"Alpha Vantage error: {data['Error Message']}")
         if "Note" in data:
             raise ValueError(f"Alpha Vantage note: {data['Note']}")
         if "Information" in data:
             raise ValueError(f"Alpha Vantage information: {data['Information']}")
+
+        return data
+
+    def get_income_statement(self, symbol: str) -> Dict[str, Any]:
+        """Fetch INCOME_STATEMENT for a symbol."""
+        return self._request(
+            {
+                "function": "INCOME_STATEMENT",
+                "symbol": symbol,
+            }
+        )
+
+    def get_earnings(self, symbol: str) -> Dict[str, Any]:
+        """Fetch EARNINGS for a symbol."""
+        return self._request(
+            {
+                "function": "EARNINGS",
+                "symbol": symbol,
+            }
+        )
+
+    def get_news_sentiment(self, ticker: str, limit: int = 20) -> List[AlphaVantageNewsItem]:
+        """
+        Fetch NEWS_SENTIMENT for a single ticker.
+        """
+        params = {
+            "function": "NEWS_SENTIMENT",
+            "tickers": ticker,
+            "sort": "LATEST",
+            "limit": max(1, min(limit, 1000)),
+        }
+        data = self._request(params)
 
         feed = data.get("feed", [])
         result: List[AlphaVantageNewsItem] = []
