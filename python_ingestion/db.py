@@ -289,6 +289,41 @@ class DatabaseManager:
         except Error as e:
             logger.error(f"Error creating table quarterly_reporting_snapshot: {e}")
             return False
+
+    def ensure_earnings_call_summary_table(self) -> bool:
+        """
+        Ensure earnings_call_summary table exists.
+        Stores latest AAPL earnings call management commentary summary.
+
+        Returns:
+            bool: True if table exists or was created successfully
+        """
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS earnings_call_summary (
+            id BIGINT NOT NULL AUTO_INCREMENT,
+            symbol VARCHAR(16) NOT NULL,
+            fiscal_period_label VARCHAR(32) NOT NULL,
+            call_date DATE NULL,
+            source VARCHAR(64) NOT NULL DEFAULT 'ALPHA_VANTAGE',
+            summary_text MEDIUMTEXT NOT NULL,
+            key_takeaways_json JSON NULL,
+            transcript_url VARCHAR(1024) NULL,
+            raw_payload_json JSON NULL,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_earnings_call_summary_symbol_period (symbol, fiscal_period_label),
+            INDEX idx_earnings_call_summary_symbol_updated (symbol, updated_at DESC)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        """
+
+        try:
+            self.execute(create_table_sql)
+            logger.info("Table earnings_call_summary ensured")
+            return True
+        except Error as e:
+            logger.error(f"Error creating table earnings_call_summary: {e}")
+            return False
     
     def close_pool(self):
         """Close all connections in the pool."""

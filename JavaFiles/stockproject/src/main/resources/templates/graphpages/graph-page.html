@@ -43,6 +43,55 @@
     </div>
 
     <div th:if="${showAppleNews}" style="margin-top: 30px;">
+        <h3>Latest Earnings Call Commentary</h3>
+        <div class="panel panel-default" style="margin-bottom: 24px;">
+            <div class="panel-body">
+                <p id="earningsCommentaryStatus" class="text-muted" style="margin-bottom: 12px;">
+                    Loading latest earnings commentary...
+                </p>
+                <div id="earningsCommentaryContent" style="display: none;">
+                    <div class="row" style="margin-bottom: 8px;">
+                        <div class="col-sm-4"><strong>Fiscal Period</strong></div>
+                        <div class="col-sm-8" id="earningsFiscalPeriod">N/A</div>
+                    </div>
+                    <div class="row" style="margin-bottom: 8px;">
+                        <div class="col-sm-4"><strong>Call Date</strong></div>
+                        <div class="col-sm-8" id="earningsCallDate">N/A</div>
+                    </div>
+                    <div class="row" style="margin-bottom: 8px;">
+                        <div class="col-sm-4"><strong>Management Summary</strong></div>
+                        <div class="col-sm-8" id="earningsSummaryText">N/A</div>
+                    </div>
+                    <div class="row" style="margin-bottom: 8px;">
+                        <div class="col-sm-4"><strong>Key Highlights</strong></div>
+                        <div class="col-sm-8">
+                            <ul id="earningsHighlightsList" style="padding-left: 18px; margin: 0;"></ul>
+                        </div>
+                    </div>
+                    <div class="row" style="margin-bottom: 8px;">
+                        <div class="col-sm-4"><strong>Main Risks / Concerns</strong></div>
+                        <div class="col-sm-8">
+                            <ul id="earningsRisksList" style="padding-left: 18px; margin: 0;"></ul>
+                        </div>
+                    </div>
+                    <div class="row" style="margin-bottom: 8px;">
+                        <div class="col-sm-4"><strong>Outlook / Guidance</strong></div>
+                        <div class="col-sm-8">
+                            <ul id="earningsOutlookList" style="padding-left: 18px; margin: 0;"></ul>
+                        </div>
+                    </div>
+                    <div class="row" id="earningsTranscriptRow" style="display: none;">
+                        <div class="col-sm-4"><strong>Transcript Source</strong></div>
+                        <div class="col-sm-8">
+                            <a id="earningsTranscriptLink" href="#" target="_blank" rel="noopener noreferrer">
+                                Open transcript
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <h3>Latest Quarterly Snapshot</h3>
         <div class="panel panel-default" style="margin-bottom: 24px;">
             <div class="panel-body">
@@ -101,10 +150,10 @@
 
 </div>
 <script th:inline="javascript">
-var apple = [[${apple}]];
-var timepoint = [[${timepoint}]];
-var hasData = [[${hasData}]];
-var symbol = [[${symbol}]];
+var apple = /*[[${apple}]]*/ [];
+var timepoint = /*[[${timepoint}]]*/ [];
+var hasData = /*[[${hasData}]]*/ false;
+var symbol = /*[[${symbol}]]*/ "";
 
 // Skip chart rendering if no data
 if (!hasData || !apple || apple.length === 0) {
@@ -124,6 +173,130 @@ if (!hasData || !apple || apple.length === 0) {
             return "N/A";
         }
         return String(value);
+    }
+
+    function normalizeFiscalPeriod(value) {
+        if (value === null || value === undefined || value === "") {
+            return "N/A";
+        }
+        var text = String(value).trim().toUpperCase();
+        if (/^\d{4}Q[1-4]$/.test(text)) {
+            return "FY" + text;
+        }
+        return text;
+    }
+
+    function shortSummary(value) {
+        if (!value || typeof value !== "string") {
+            return "N/A";
+        }
+        var cleaned = value.replace(/\s+/g, " ").trim();
+        if (!cleaned) {
+            return "N/A";
+        }
+        var sentenceMatches = cleaned.match(/[^.!?]+[.!?]?/g) || [];
+        var brief = sentenceMatches.slice(0, 2).join(" ").trim();
+        if (!brief) {
+            brief = cleaned;
+        }
+        if (brief.length > 420) {
+            brief = brief.slice(0, 420).trim() + "...";
+        }
+        return brief;
+    }
+
+    function normalizeFiscalPeriod(value) {
+        if (value === null || value === undefined || value === "") {
+            return "N/A";
+        }
+        var text = String(value).trim().toUpperCase();
+        if (/^\d{4}Q[1-4]$/.test(text)) {
+            return "FY" + text;
+        }
+        return text;
+    }
+
+    function shortSummary(value) {
+        if (!value || typeof value !== "string") {
+            return "N/A";
+        }
+        var cleaned = value.replace(/\s+/g, " ").trim();
+        if (!cleaned) {
+            return "N/A";
+        }
+        var sentenceMatches = cleaned.match(/[^.!?]+[.!?]?/g) || [];
+        var brief = sentenceMatches.slice(0, 2).join(" ").trim();
+        if (!brief) {
+            brief = cleaned;
+        }
+        if (brief.length > 420) {
+            brief = brief.slice(0, 420).trim() + "...";
+        }
+        return brief;
+    }
+
+    function normalizeFiscalPeriod(value) {
+        if (value === null || value === undefined || value === "") {
+            return "N/A";
+        }
+        var text = String(value).trim().toUpperCase();
+        if (/^\d{4}Q[1-4]$/.test(text)) {
+            return "FY" + text;
+        }
+        return text;
+    }
+
+    function shortSummary(value) {
+        if (!value || typeof value !== "string") {
+            return "N/A";
+        }
+        var cleaned = value.replace(/\s+/g, " ").trim();
+        if (!cleaned) {
+            return "N/A";
+        }
+        var sentences = cleaned.split(/(?<=[.!?])\s+/).filter(function(item) {
+            return item && item.trim() !== "";
+        });
+        var brief = sentences.slice(0, 2).join(" ").trim();
+        if (!brief) {
+            brief = cleaned;
+        }
+        if (brief.length > 420) {
+            brief = brief.slice(0, 420).trim() + "...";
+        }
+        return brief;
+    }
+
+    function normalizeFiscalPeriod(value) {
+        if (value === null || value === undefined || value === "") {
+            return "N/A";
+        }
+        var text = String(value).trim().toUpperCase();
+        if (/^\d{4}Q[1-4]$/.test(text)) {
+            return "FY" + text;
+        }
+        return text;
+    }
+
+    function shortSummary(value) {
+        if (!value || typeof value !== "string") {
+            return "N/A";
+        }
+        var cleaned = value.replace(/\s+/g, " ").trim();
+        if (!cleaned) {
+            return "N/A";
+        }
+        var sentences = cleaned.split(/(?<=[.!?])\s+/).filter(function(item) {
+            return item && item.trim() !== "";
+        });
+        var brief = sentences.slice(0, 2).join(" ").trim();
+        if (!brief) {
+            brief = cleaned;
+        }
+        if (brief.length > 420) {
+            brief = brief.slice(0, 420).trim() + "...";
+        }
+        return brief;
     }
 
     function formatMoney(value) {
@@ -212,6 +385,222 @@ if (!hasData || !apple || apple.length === 0) {
         })
         .catch(function() {
             showFallback("Quarterly snapshot is not available yet. Please run ingestion and try again.");
+        });
+})();
+</script>
+<script type="text/javascript">
+(function() {
+    if (!symbol || symbol.toUpperCase() !== "AAPL") {
+        return;
+    }
+
+    function safeText(value) {
+        if (value === null || value === undefined || value === "") {
+            return "N/A";
+        }
+        return String(value);
+    }
+
+    function setText(id, text) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.textContent = text;
+        }
+    }
+
+    function showCommentaryFallback(message) {
+        var statusEl = document.getElementById("earningsCommentaryStatus");
+        var contentEl = document.getElementById("earningsCommentaryContent");
+        if (statusEl) {
+            statusEl.textContent = message;
+            statusEl.className = "text-muted";
+            statusEl.style.display = "block";
+        }
+        if (contentEl) {
+            contentEl.style.display = "none";
+        }
+    }
+
+    function parseLegacyTakeaways(rawJson) {
+        var sections = {
+            keyHighlights: [],
+            mainRisksConcerns: [],
+            outlookGuidance: []
+        };
+        if (!rawJson) {
+            return sections;
+        }
+        try {
+            var parsed = JSON.parse(rawJson);
+            if (!Array.isArray(parsed)) {
+                return sections;
+            }
+            parsed.forEach(function(item) {
+                if (typeof item !== "string") {
+                    return;
+                }
+                var text = item.trim();
+                if (!text) {
+                    return;
+                }
+                var lower = text.toLowerCase();
+                if (lower.indexOf("key highlights:") === 0) {
+                    sections.keyHighlights.push(text.substring("Key Highlights:".length).trim());
+                } else if (lower.indexOf("main risks / concerns:") === 0) {
+                    sections.mainRisksConcerns.push(text.substring("Main Risks / Concerns:".length).trim());
+                } else if (lower.indexOf("outlook / guidance:") === 0) {
+                    sections.outlookGuidance.push(text.substring("Outlook / Guidance:".length).trim());
+                } else {
+                    sections.keyHighlights.push(text);
+                }
+            });
+        } catch (e) {
+            // Keep silent and fallback to empty sections.
+        }
+        return sections;
+    }
+
+    function renderSectionList(listId, items, emptyText) {
+        var listEl = document.getElementById(listId);
+        if (!listEl) {
+            return;
+        }
+        listEl.innerHTML = "";
+        var seen = {};
+        var content = [];
+        if (Array.isArray(items)) {
+            items.forEach(function(item) {
+                if (typeof item !== "string") {
+                    return;
+                }
+                var text = item.replace(/\s+/g, " ").trim();
+                if (!text) {
+                    return;
+                }
+                var key = text.toLowerCase();
+                if (seen[key]) {
+                    return;
+                }
+                seen[key] = true;
+                if (text.length > 220) {
+                    text = text.slice(0, 220).trim() + "...";
+                }
+                content.push(text);
+            });
+            content = content.slice(0, 2);
+        }
+        if (!content.length) {
+            var li = document.createElement("li");
+            li.textContent = emptyText;
+            listEl.appendChild(li);
+            return;
+        }
+        content.forEach(function(item) {
+            var li = document.createElement("li");
+            li.textContent = item;
+            listEl.appendChild(li);
+        });
+    }
+
+    function renderTranscriptLink(url) {
+        var rowEl = document.getElementById("earningsTranscriptRow");
+        var linkEl = document.getElementById("earningsTranscriptLink");
+        if (!linkEl || !rowEl) {
+            return;
+        }
+        var text = (typeof url === "string") ? url.trim() : "";
+        var lower = text.toLowerCase();
+        var isMissing = !text || lower === "n/a" || lower === "na" || lower === "null" || lower === "undefined";
+        if (!isMissing) {
+            linkEl.href = text;
+            rowEl.style.display = "block";
+        } else {
+            rowEl.style.display = "none";
+        }
+    }
+
+    function normalizeFiscalPeriod(value) {
+        if (value === null || value === undefined || value === "") {
+            return "N/A";
+        }
+        var text = String(value).trim().toUpperCase();
+        if (/^\d{4}Q[1-4]$/.test(text)) {
+            return "FY" + text;
+        }
+        return text;
+    }
+
+    function shortSummary(value) {
+        if (!value || typeof value !== "string") {
+            return "N/A";
+        }
+        var cleaned = value.replace(/\s+/g, " ").trim();
+        if (!cleaned) {
+            return "N/A";
+        }
+        var sentenceMatches = cleaned.match(/[^.!?]+[.!?]?/g) || [];
+        var brief = sentenceMatches.slice(0, 2).join(" ").trim();
+        if (!brief) {
+            brief = cleaned;
+        }
+        if (brief.length > 420) {
+            brief = brief.slice(0, 420).trim() + "...";
+        }
+        return brief;
+    }
+
+    function showCommentary(data) {
+        var statusEl = document.getElementById("earningsCommentaryStatus");
+        var contentEl = document.getElementById("earningsCommentaryContent");
+        if (statusEl) {
+            statusEl.style.display = "none";
+        }
+        if (contentEl) {
+            contentEl.style.display = "block";
+        }
+
+        setText("earningsFiscalPeriod", normalizeFiscalPeriod(data.fiscalPeriodLabel));
+        setText("earningsCallDate", safeText(data.callDate));
+        setText("earningsSummaryText", shortSummary(data.summaryText));
+
+        var sections = {
+            keyHighlights: Array.isArray(data.keyHighlights) ? data.keyHighlights : [],
+            mainRisksConcerns: Array.isArray(data.mainRisksConcerns) ? data.mainRisksConcerns : [],
+            outlookGuidance: Array.isArray(data.outlookGuidance) ? data.outlookGuidance : []
+        };
+        if (!sections.keyHighlights.length && !sections.mainRisksConcerns.length && !sections.outlookGuidance.length) {
+            sections = parseLegacyTakeaways(data.keyTakeawaysJson);
+        }
+
+        renderSectionList("earningsHighlightsList", sections.keyHighlights, "No highlights available.");
+        renderSectionList("earningsRisksList", sections.mainRisksConcerns, "No material risks highlighted.");
+        renderSectionList("earningsOutlookList", sections.outlookGuidance, "No outlook guidance highlighted.");
+        renderTranscriptLink(data.transcriptUrl);
+    }
+
+    fetch("/api/financials/earnings/latest?symbol=AAPL")
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error("no earnings commentary");
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            console.log("[earnings] payload:", data);
+            if (!data || typeof data !== "object") {
+                showCommentaryFallback("Earnings commentary is not available yet.");
+                return;
+            }
+            console.log("[earnings] sections before render:", {
+                keyHighlights: data.keyHighlights,
+                mainRisksConcerns: data.mainRisksConcerns,
+                outlookGuidance: data.outlookGuidance
+            });
+            showCommentary(data);
+        })
+        .catch(function(error) {
+            console.error("[earnings] render failed:", error);
+            showCommentaryFallback("Earnings commentary could not be rendered on this page. Please refresh and check console logs.");
         });
 })();
 </script>
