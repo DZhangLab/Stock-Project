@@ -146,6 +146,16 @@ class AlphaVantageClient:
             }
         )
 
+    def get_earnings_call_transcript(self, symbol: str, quarter: str) -> Dict[str, Any]:
+        """Fetch EARNINGS_CALL_TRANSCRIPT for a symbol and quarter (e.g. 2025Q1)."""
+        return self._request(
+            {
+                "function": "EARNINGS_CALL_TRANSCRIPT",
+                "symbol": symbol,
+                "quarter": quarter,
+            }
+        )
+
     def get_news_sentiment(self, ticker: str, limit: int = 20) -> List[AlphaVantageNewsItem]:
         """
         Fetch NEWS_SENTIMENT for a single ticker.

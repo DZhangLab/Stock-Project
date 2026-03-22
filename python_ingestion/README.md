@@ -11,13 +11,16 @@ python_ingestion/
 ├── symbols.py             # Stock symbol list management
 ├── db.py                  # MySQL connection pooling and operations
 ├── twelve_data.py         # TwelveData API client
-├── alpha_vantage.py       # Alpha Vantage API client (Apple news)
+├── alpha_vantage.py       # Alpha Vantage API client (news/financials/transcript)
 ├── main.py                # Main entry point with scheduler
 ├── jobs/
 │   ├── __init__.py
 │   ├── quotes.py          # Daily closing quote collection
 │   ├── intraday.py        # 1-minute interval data collection
-│   └── historical.py      # Historical date range collection
+│   ├── historical.py      # Historical date range collection
+│   ├── apple_news.py      # AAPL company news ingestion
+│   ├── aapl_quarterly_snapshot.py    # AAPL latest quarterly snapshot ingestion
+│   └── aapl_earnings_commentary.py   # AAPL latest earnings call summary ingestion
 └── requirements.txt       # Python dependencies
 ```
 
@@ -109,6 +112,20 @@ Notes:
 - The `ALPHA_VANTAGE_API_KEY` must be set in `python_ingestion/.env`.
 - The `company_news` table is created automatically if it does not exist.
 - Deduplication is handled by URL hash with unique key `(symbol, url_hash)`.
+
+### Apple Earnings Call Commentary Ingestion (Next MVP Layer)
+
+Run one-time latest AAPL earnings call transcript summarization:
+
+```bash
+python -m python_ingestion.jobs.aapl_earnings_commentary
+```
+
+Notes:
+- Scope is fixed to `AAPL` and latest call only.
+- This job uses Alpha Vantage `EARNINGS` and `EARNINGS_CALL_TRANSCRIPT`.
+- The `earnings_call_summary` table is created automatically if it does not exist.
+- Upsert key is `(symbol, fiscal_period_label)` to keep one latest summary per fiscal quarter.
 
 ## Features
 
