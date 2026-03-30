@@ -1,7 +1,9 @@
 package com.summer.stockproject.controller;
 
+import com.summer.stockproject.entity.CompanyNewsAiSummary;
 import com.summer.stockproject.entity.EarningsCallSummary;
 import com.summer.stockproject.entity.QuarterlyReportingSnapshot;
+import com.summer.stockproject.service.CompanyNewsAiSummaryService;
 import com.summer.stockproject.service.EarningsCallSummaryService;
 import com.summer.stockproject.service.QuarterlyReportingSnapshotService;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -26,14 +28,17 @@ public class FinancialsController {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private final QuarterlyReportingSnapshotService quarterlyReportingSnapshotService;
     private final EarningsCallSummaryService earningsCallSummaryService;
+    private final CompanyNewsAiSummaryService companyNewsAiSummaryService;
 
     @Autowired
     public FinancialsController(
             QuarterlyReportingSnapshotService quarterlyReportingSnapshotService,
-            EarningsCallSummaryService earningsCallSummaryService
+            EarningsCallSummaryService earningsCallSummaryService,
+            CompanyNewsAiSummaryService companyNewsAiSummaryService
     ) {
         this.quarterlyReportingSnapshotService = quarterlyReportingSnapshotService;
         this.earningsCallSummaryService = earningsCallSummaryService;
+        this.companyNewsAiSummaryService = companyNewsAiSummaryService;
     }
 
     @GetMapping("/quarterly/latest")
@@ -89,6 +94,36 @@ public class FinancialsController {
         response.put("mainRisksConcerns", sections.get("mainRisksConcerns"));
         response.put("outlookGuidance", sections.get("outlookGuidance"));
         response.put("transcriptUrl", summary.getTranscriptUrl());
+        response.put("updatedAt", summary.getUpdatedAt() == null ? null : summary.getUpdatedAt().toString());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/news-ai/latest")
+    public ResponseEntity<Map<String, Object>> getLatestCompanyNewsAiSummary(
+            @RequestParam(defaultValue = "AAPL") String symbol
+    ) {
+        CompanyNewsAiSummary summary = companyNewsAiSummaryService.getLatestBySymbol(symbol);
+        if (summary == null) {
+            Map<String, Object> notFound = new LinkedHashMap<>();
+            notFound.put("symbol", symbol == null ? "" : symbol.trim().toUpperCase());
+            notFound.put("message", "No AI news summary found");
+            return ResponseEntity.status(404).body(notFound);
+        }
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("symbol", summary.getSymbol());
+        response.put("analysisDate", summary.getAnalysisDate() == null ? null : summary.getAnalysisDate().toString());
+        response.put("sourceWindowLabel", summary.getSourceWindowLabel());
+        response.put("sourceNewsCount", summary.getSourceNewsCount());
+        response.put("overallSentimentLabel", summary.getOverallSentimentLabel());
+        response.put("overallSentimentSummary", summary.getOverallSentimentSummary());
+        response.put("mainThemes", parseStringArray(summary.getMainThemesJson()));
+        response.put("topPositiveDriver", summary.getTopPositiveDriver());
+        response.put("topRiskConcern", summary.getTopRiskConcern());
+        response.put("confidenceNote", summary.getConfidenceNote());
+        response.put("provider", summary.getProvider());
+        response.put("modelName", summary.getModelName());
+        response.put("promptVersion", summary.getPromptVersion());
         response.put("updatedAt", summary.getUpdatedAt() == null ? null : summary.getUpdatedAt().toString());
         return ResponseEntity.ok(response);
     }
@@ -173,6 +208,28 @@ public class FinancialsController {
                 "challenging"
         };
         return containsAny(text, riskKeywords);
+    }
+
+    private List<String> parseStringArray(String rawJson) {
+        if (rawJson == null || rawJson.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        try {
+            List<String> items = OBJECT_MAPPER.readValue(rawJson, new TypeReference<List<String>>() {});
+            List<String> cleaned = new ArrayList<>();
+            for (String item : items) {
+                if (item == null) {
+                    continue;
+                }
+                String text = item.trim();
+                if (!text.isEmpty() && !cleaned.contains(text)) {
+                    cleaned.add(text);
+                }
+            }
+            return cleaned;
+        } catch (java.io.IOException ignored) {
+            return Collections.emptyList();
+        }
     }
 
     private Map<String, List<String>> parseTakeawaySections(String rawJson) {

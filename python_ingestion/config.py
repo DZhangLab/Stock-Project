@@ -45,11 +45,23 @@ class AlphaVantageConfig:
 
 
 @dataclass
+class AIConfig:
+    """AI provider configuration dataclass."""
+    provider: str
+    api_key: str
+    model: str
+    prompt_version: str
+    base_url: str = "https://api.openai.com/v1/responses"
+    timeout: int = 60
+
+
+@dataclass
 class Config:
     """Main configuration dataclass."""
     database: DatabaseConfig
     api: APIConfig
     alpha_vantage: AlphaVantageConfig
+    ai: AIConfig
 
 
 def load_config() -> Config:
@@ -83,5 +95,18 @@ def load_config() -> Config:
         timeout=int(os.getenv("ALPHA_VANTAGE_TIMEOUT", "30"))
     )
 
-    return Config(database=db_config, api=api_config, alpha_vantage=alpha_vantage_config)
+    ai_config = AIConfig(
+        provider=os.getenv("AI_PROVIDER", "openai").strip().lower() or "openai",
+        api_key=os.getenv("OPENAI_API_KEY", ""),
+        model=os.getenv("AI_MODEL", "gpt-4.1-mini"),
+        prompt_version=os.getenv("AI_PROMPT_VERSION", "news_ai_summary_v1"),
+        base_url=os.getenv("OPENAI_RESPONSES_URL", "https://api.openai.com/v1/responses"),
+        timeout=int(os.getenv("OPENAI_TIMEOUT", "60"))
+    )
 
+    return Config(
+        database=db_config,
+        api=api_config,
+        alpha_vantage=alpha_vantage_config,
+        ai=ai_config
+    )

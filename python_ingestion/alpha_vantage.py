@@ -23,6 +23,8 @@ class AlphaVantageNewsItem:
     published_at: str
     relevance_score: Optional[float] = None
     raw_ticker_match: bool = False
+    overall_sentiment_score: Optional[float] = None
+    overall_sentiment_label: Optional[str] = None
 
 
 class AlphaVantageClient:
@@ -218,6 +220,8 @@ class AlphaVantageClient:
                     published_at=published_at,
                     relevance_score=relevance_score,
                     raw_ticker_match=raw_ticker_match,
+                    overall_sentiment_score=self._safe_float(raw.get("overall_sentiment_score")),
+                    overall_sentiment_label=str(raw.get("overall_sentiment_label", "")).strip() or None,
                 )
             )
 

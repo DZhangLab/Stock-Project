@@ -186,6 +186,8 @@ class DatabaseManager:
             url_hash CHAR(64) NOT NULL,
             source VARCHAR(128) NULL,
             published_at DATETIME NOT NULL,
+            av_overall_sentiment_score DECIMAL(10, 4) NULL,
+            av_overall_sentiment_label VARCHAR(32) NULL,
             ingestion_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY uq_company_news_symbol_url_hash (symbol, url_hash),
@@ -212,6 +214,38 @@ class DatabaseManager:
                 self.execute("ALTER TABLE company_news ADD COLUMN url_hash CHAR(64) NULL AFTER url")
             self.execute("UPDATE company_news SET url_hash = SHA2(url, 256) WHERE url_hash IS NULL")
             self.execute("ALTER TABLE company_news MODIFY COLUMN url_hash CHAR(64) NOT NULL")
+
+            sentiment_score_rows = self.execute(
+                """
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = %s
+                  AND table_name = 'company_news'
+                  AND column_name = 'av_overall_sentiment_score'
+                LIMIT 1
+                """,
+                (self.config.database,)
+            ) or []
+            if not sentiment_score_rows:
+                self.execute(
+                    "ALTER TABLE company_news ADD COLUMN av_overall_sentiment_score DECIMAL(10, 4) NULL AFTER published_at"
+                )
+
+            sentiment_label_rows = self.execute(
+                """
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = %s
+                  AND table_name = 'company_news'
+                  AND column_name = 'av_overall_sentiment_label'
+                LIMIT 1
+                """,
+                (self.config.database,)
+            ) or []
+            if not sentiment_label_rows:
+                self.execute(
+                    "ALTER TABLE company_news ADD COLUMN av_overall_sentiment_label VARCHAR(32) NULL AFTER av_overall_sentiment_score"
+                )
 
             old_unique_rows = self.execute(
                 """
@@ -247,6 +281,47 @@ class DatabaseManager:
             return True
         except Error as e:
             logger.error(f"Error creating table company_news: {e}")
+            return False
+
+    def ensure_company_news_ai_summary_table(self) -> bool:
+        """
+        Ensure company_news_ai_summary table exists.
+
+        Returns:
+            bool: True if table exists or was created successfully
+        """
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS company_news_ai_summary (
+            id BIGINT NOT NULL AUTO_INCREMENT,
+            symbol VARCHAR(16) NOT NULL,
+            analysis_date DATE NOT NULL,
+            source_window_label VARCHAR(64) NOT NULL,
+            source_news_count INT NOT NULL,
+            overall_sentiment_label VARCHAR(32) NOT NULL,
+            overall_sentiment_summary TEXT NOT NULL,
+            main_themes_json JSON NOT NULL,
+            top_positive_driver TEXT NULL,
+            top_risk_concern TEXT NULL,
+            confidence_note TEXT NULL,
+            provider VARCHAR(64) NOT NULL,
+            model_name VARCHAR(128) NOT NULL,
+            prompt_version VARCHAR(32) NOT NULL,
+            source_articles_json JSON NULL,
+            raw_model_response_json JSON NOT NULL,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_company_news_ai_summary_symbol_analysis_date (symbol, analysis_date),
+            INDEX idx_company_news_ai_summary_symbol_updated (symbol, updated_at DESC)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        """
+
+        try:
+            self.execute(create_table_sql)
+            logger.info("Table company_news_ai_summary ensured")
+            return True
+        except Error as e:
+            logger.error(f"Error creating table company_news_ai_summary: {e}")
             return False
 
     def ensure_quarterly_reporting_snapshot_table(self) -> bool:
@@ -352,4 +427,3 @@ def get_db_manager(config: Optional[DatabaseConfig] = None) -> DatabaseManager:
     if _db_manager is None:
         _db_manager = DatabaseManager(config)
     return _db_manager
-

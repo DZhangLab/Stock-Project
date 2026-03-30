@@ -85,6 +85,8 @@ class AppleNewsCollector:
                     url_hash,
                     (item.source[:128] if item.source else None),
                     published_at,
+                    item.overall_sentiment_score,
+                    (item.overall_sentiment_label[:32] if item.overall_sentiment_label else None),
                 )
             )
 
@@ -100,14 +102,19 @@ class AppleNewsCollector:
             return 0
 
         insert_sql = """
-        INSERT INTO company_news (symbol, title, summary, url, url_hash, source, published_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO company_news (
+            symbol, title, summary, url, url_hash, source, published_at,
+            av_overall_sentiment_score, av_overall_sentiment_label
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             title = VALUES(title),
             summary = VALUES(summary),
             url = VALUES(url),
             source = VALUES(source),
             published_at = VALUES(published_at),
+            av_overall_sentiment_score = VALUES(av_overall_sentiment_score),
+            av_overall_sentiment_label = VALUES(av_overall_sentiment_label),
             ingestion_time = CURRENT_TIMESTAMP
         """
 

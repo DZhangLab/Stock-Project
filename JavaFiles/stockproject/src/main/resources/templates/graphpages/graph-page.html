@@ -10,6 +10,81 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.4.0/Chart.min.js"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script type="text/javascript" th:src="@{/jsFile/getdata.js}" ></script>
+    <style>
+        .news-ai-card .panel-body {
+            padding-top: 16px;
+            padding-bottom: 16px;
+        }
+
+        .news-ai-section + .news-ai-section {
+            margin-top: 14px;
+        }
+
+        .news-ai-sentiment-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .news-ai-pill {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            line-height: 1.2;
+        }
+
+        .news-ai-pill-positive {
+            background: #e6f6ea;
+            color: #1f6b37;
+        }
+
+        .news-ai-pill-mixed {
+            background: #fff4d6;
+            color: #8a5a00;
+        }
+
+        .news-ai-pill-negative {
+            background: #fde8e8;
+            color: #8a1f1f;
+        }
+
+        .news-ai-summary-text {
+            margin: 2px 0 0 0;
+            color: #4a4a4a;
+            font-size: 13px;
+            line-height: 1.6;
+            max-width: 720px;
+        }
+
+        .news-ai-theme-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .news-ai-theme-chip {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 14px;
+            background: #f4f6f8;
+            color: #334155;
+            font-size: 12px;
+            line-height: 1.3;
+        }
+
+        .news-ai-detail-text {
+            margin: 4px 0 0 0;
+            color: #3d3d3d;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+    </style>
 
 </head>
 <body>
@@ -43,6 +118,36 @@
     </div>
 
     <div th:if="${showAppleNews}" style="margin-top: 30px;">
+        <h3>AI News Summary</h3>
+        <div class="panel panel-default news-ai-card" style="margin-bottom: 24px;">
+            <div class="panel-body">
+                <p id="newsAiSummaryStatus" class="text-muted" style="margin-bottom: 12px;">
+                    Loading AI news summary...
+                </p>
+                <div id="newsAiSummaryContent" style="display: none;">
+                    <div class="news-ai-section">
+                        <div style="font-weight: 700; margin-bottom: 8px;">Overall Sentiment</div>
+                        <div class="news-ai-sentiment-row">
+                            <span id="newsAiSentimentBadge" class="news-ai-pill">N/A</span>
+                            <p id="newsAiSentimentSummary" class="news-ai-summary-text">N/A</p>
+                        </div>
+                    </div>
+                    <div class="news-ai-section">
+                        <div style="font-weight: 700;">Main Themes</div>
+                        <div id="newsAiThemesList" class="news-ai-theme-list"></div>
+                    </div>
+                    <div class="news-ai-section">
+                        <div style="font-weight: 700;">Top Positive Driver</div>
+                        <p id="newsAiTopPositiveDriver" class="news-ai-detail-text">N/A</p>
+                    </div>
+                    <div class="news-ai-section">
+                        <div style="font-weight: 700;">Top Risk Concern</div>
+                        <p id="newsAiTopRiskConcern" class="news-ai-detail-text">N/A</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <h3>Latest Earnings Call Commentary</h3>
         <div class="panel panel-default" style="margin-bottom: 24px;">
             <div class="panel-body">
@@ -161,6 +266,134 @@ if (!hasData || !apple || apple.length === 0) {
 } else {
     console.log("Data count: " + apple.length);
 }
+</script>
+<script type="text/javascript">
+(function() {
+    if (!symbol || symbol.toUpperCase() !== "AAPL") {
+        return;
+    }
+
+    function safeText(value) {
+        if (value === null || value === undefined || value === "") {
+            return "N/A";
+        }
+        return String(value);
+    }
+
+    function setNewsAiText(id, text) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.textContent = text;
+        }
+    }
+
+    function showNewsAiFallback(message) {
+        var statusEl = document.getElementById("newsAiSummaryStatus");
+        var contentEl = document.getElementById("newsAiSummaryContent");
+        if (statusEl) {
+            statusEl.textContent = message;
+            statusEl.className = "text-muted";
+            statusEl.style.display = "block";
+        }
+        if (contentEl) {
+            contentEl.style.display = "none";
+        }
+    }
+
+    function renderNewsAiThemes(items) {
+        var containerEl = document.getElementById("newsAiThemesList");
+        if (!containerEl) {
+            return;
+        }
+        containerEl.innerHTML = "";
+        if (!Array.isArray(items) || !items.length) {
+            var emptyChip = document.createElement("span");
+            emptyChip.className = "news-ai-theme-chip";
+            emptyChip.textContent = "No themes available.";
+            containerEl.appendChild(emptyChip);
+            return;
+        }
+        items.slice(0, 4).forEach(function(item) {
+            var text = (typeof item === "string") ? item.replace(/\s+/g, " ").trim() : "";
+            if (!text) {
+                return;
+            }
+            var chip = document.createElement("span");
+            chip.className = "news-ai-theme-chip";
+            chip.textContent = text;
+            containerEl.appendChild(chip);
+        });
+        if (!containerEl.children.length) {
+            var fallbackChip = document.createElement("span");
+            fallbackChip.className = "news-ai-theme-chip";
+            fallbackChip.textContent = "No themes available.";
+            containerEl.appendChild(fallbackChip);
+        }
+    }
+
+    function formatSentimentLabel(label) {
+        if (!label || typeof label !== "string") {
+            return "N/A";
+        }
+        var text = label.replace(/_/g, " ").trim().toLowerCase();
+        if (!text) {
+            return "N/A";
+        }
+        return text.charAt(0).toUpperCase() + text.slice(1);
+    }
+
+    function setSentimentBadge(label) {
+        var badgeEl = document.getElementById("newsAiSentimentBadge");
+        if (!badgeEl) {
+            return;
+        }
+        var normalized = (typeof label === "string") ? label.trim().toLowerCase() : "";
+        badgeEl.className = "news-ai-pill";
+        if (normalized === "positive") {
+            badgeEl.className += " news-ai-pill-positive";
+        } else if (normalized === "negative") {
+            badgeEl.className += " news-ai-pill-negative";
+        } else {
+            badgeEl.className += " news-ai-pill-mixed";
+        }
+        badgeEl.textContent = formatSentimentLabel(label);
+    }
+
+    function showNewsAiSummary(data) {
+        var statusEl = document.getElementById("newsAiSummaryStatus");
+        var contentEl = document.getElementById("newsAiSummaryContent");
+        if (statusEl) {
+            statusEl.style.display = "none";
+        }
+        if (contentEl) {
+            contentEl.style.display = "block";
+        }
+
+        setSentimentBadge(data.overallSentimentLabel);
+        setNewsAiText("newsAiSentimentSummary", safeText(data.overallSentimentSummary));
+        renderNewsAiThemes(data.mainThemes);
+        setNewsAiText("newsAiTopPositiveDriver", safeText(data.topPositiveDriver));
+        setNewsAiText("newsAiTopRiskConcern", safeText(data.topRiskConcern));
+    }
+
+    fetch("/api/financials/news-ai/latest?symbol=AAPL")
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error("no ai news summary");
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            if (!data || typeof data !== "object") {
+                showNewsAiFallback("AI news summary is not available yet.");
+                return;
+            }
+            showNewsAiSummary(data);
+        })
+        .catch(function() {
+            showNewsAiFallback("AI news summary is not available yet. Please run AI summary generation and try again.");
+        });
+})();
 </script>
 <script type="text/javascript">
 (function() {
