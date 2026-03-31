@@ -84,6 +84,12 @@
             font-size: 13px;
             line-height: 1.55;
         }
+
+        .earnings-ai-meta {
+            color: #6b7280;
+            font-size: 12px;
+            margin-top: 6px;
+        }
     </style>
 
 </head>
@@ -143,6 +149,38 @@
                     <div class="news-ai-section">
                         <div style="font-weight: 700;">Top Risk Concern</div>
                         <p id="newsAiTopRiskConcern" class="news-ai-detail-text">N/A</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h3>AI Earnings Analysis</h3>
+        <div class="panel panel-default news-ai-card" style="margin-bottom: 24px;">
+            <div class="panel-body">
+                <p id="earningsAiStatus" class="text-muted" style="margin-bottom: 12px;">
+                    Loading AI earnings analysis...
+                </p>
+                <div id="earningsAiContent" style="display: none;">
+                    <div class="news-ai-section">
+                        <div style="font-weight: 700; margin-bottom: 8px;">Overall Tone</div>
+                        <div class="news-ai-sentiment-row">
+                            <span id="earningsAiToneBadge" class="news-ai-pill">N/A</span>
+                            <div>
+                                <div id="earningsAiMeta" class="earnings-ai-meta">N/A</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="news-ai-section">
+                        <div style="font-weight: 700;">Key Highlights</div>
+                        <ul id="earningsAiHighlightsList" style="padding-left: 18px; margin: 6px 0 0 0;"></ul>
+                    </div>
+                    <div class="news-ai-section">
+                        <div style="font-weight: 700;">Main Risks / Concerns</div>
+                        <ul id="earningsAiRisksList" style="padding-left: 18px; margin: 6px 0 0 0;"></ul>
+                    </div>
+                    <div class="news-ai-section">
+                        <div style="font-weight: 700;">Outlook / Guidance</div>
+                        <ul id="earningsAiOutlookList" style="padding-left: 18px; margin: 6px 0 0 0;"></ul>
                     </div>
                 </div>
             </div>
@@ -392,6 +430,129 @@ if (!hasData || !apple || apple.length === 0) {
         })
         .catch(function() {
             showNewsAiFallback("AI news summary is not available yet. Please run AI summary generation and try again.");
+        });
+})();
+</script>
+<script type="text/javascript">
+(function() {
+    if (!symbol || symbol.toUpperCase() !== "AAPL") {
+        return;
+    }
+
+    function safeText(value) {
+        if (value === null || value === undefined || value === "") {
+            return "N/A";
+        }
+        return String(value);
+    }
+
+    function formatToneLabel(label) {
+        if (!label || typeof label !== "string") {
+            return "N/A";
+        }
+        var text = label.replace(/_/g, " ").trim().toLowerCase();
+        if (!text) {
+            return "N/A";
+        }
+        return text.charAt(0).toUpperCase() + text.slice(1);
+    }
+
+    function setToneBadge(label) {
+        var badgeEl = document.getElementById("earningsAiToneBadge");
+        if (!badgeEl) {
+            return;
+        }
+        var normalized = (typeof label === "string") ? label.trim().toLowerCase() : "";
+        badgeEl.className = "news-ai-pill";
+        if (normalized === "positive") {
+            badgeEl.className += " news-ai-pill-positive";
+        } else if (normalized === "negative") {
+            badgeEl.className += " news-ai-pill-negative";
+        } else {
+            badgeEl.className += " news-ai-pill-mixed";
+        }
+        badgeEl.textContent = formatToneLabel(label);
+    }
+
+    function renderList(listId, items, emptyText) {
+        var listEl = document.getElementById(listId);
+        if (!listEl) {
+            return;
+        }
+        listEl.innerHTML = "";
+        if (!Array.isArray(items) || !items.length) {
+            var emptyItem = document.createElement("li");
+            emptyItem.textContent = emptyText;
+            listEl.appendChild(emptyItem);
+            return;
+        }
+        items.slice(0, 4).forEach(function(item) {
+            var text = (typeof item === "string") ? item.replace(/\s+/g, " ").trim() : "";
+            if (!text) {
+                return;
+            }
+            var li = document.createElement("li");
+            li.textContent = text;
+            listEl.appendChild(li);
+        });
+        if (!listEl.children.length) {
+            var fallbackItem = document.createElement("li");
+            fallbackItem.textContent = emptyText;
+            listEl.appendChild(fallbackItem);
+        }
+    }
+
+    function showEarningsAiFallback(message) {
+        var statusEl = document.getElementById("earningsAiStatus");
+        var contentEl = document.getElementById("earningsAiContent");
+        if (statusEl) {
+            statusEl.textContent = message;
+            statusEl.className = "text-muted";
+            statusEl.style.display = "block";
+        }
+        if (contentEl) {
+            contentEl.style.display = "none";
+        }
+    }
+
+    function showEarningsAi(data) {
+        var statusEl = document.getElementById("earningsAiStatus");
+        var contentEl = document.getElementById("earningsAiContent");
+        var metaEl = document.getElementById("earningsAiMeta");
+
+        if (statusEl) {
+            statusEl.style.display = "none";
+        }
+        if (contentEl) {
+            contentEl.style.display = "block";
+        }
+
+        setToneBadge(data.overallTone);
+        if (metaEl) {
+            metaEl.textContent =
+                safeText(data.fiscalPeriodLabel) + " | Call Date: " + safeText(data.callDate);
+        }
+        renderList("earningsAiHighlightsList", data.keyHighlights, "No highlights available.");
+        renderList("earningsAiRisksList", data.mainRisksConcerns, "No material risks highlighted.");
+        renderList("earningsAiOutlookList", data.outlookGuidance, "No outlook guidance highlighted.");
+    }
+
+    fetch("/api/financials/earnings-ai/latest?symbol=AAPL")
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error("no earnings ai analysis");
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            if (!data || typeof data !== "object") {
+                showEarningsAiFallback("AI earnings analysis is not available yet.");
+                return;
+            }
+            showEarningsAi(data);
+        })
+        .catch(function() {
+            showEarningsAiFallback("AI earnings analysis is not available yet. Please run the earnings AI job and try again.");
         });
 })();
 </script>

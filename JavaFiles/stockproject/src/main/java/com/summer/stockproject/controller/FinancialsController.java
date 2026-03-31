@@ -1,9 +1,11 @@
 package com.summer.stockproject.controller;
 
 import com.summer.stockproject.entity.CompanyNewsAiSummary;
+import com.summer.stockproject.entity.EarningsAiAnalysis;
 import com.summer.stockproject.entity.EarningsCallSummary;
 import com.summer.stockproject.entity.QuarterlyReportingSnapshot;
 import com.summer.stockproject.service.CompanyNewsAiSummaryService;
+import com.summer.stockproject.service.EarningsAiAnalysisService;
 import com.summer.stockproject.service.EarningsCallSummaryService;
 import com.summer.stockproject.service.QuarterlyReportingSnapshotService;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -29,16 +31,19 @@ public class FinancialsController {
     private final QuarterlyReportingSnapshotService quarterlyReportingSnapshotService;
     private final EarningsCallSummaryService earningsCallSummaryService;
     private final CompanyNewsAiSummaryService companyNewsAiSummaryService;
+    private final EarningsAiAnalysisService earningsAiAnalysisService;
 
     @Autowired
     public FinancialsController(
             QuarterlyReportingSnapshotService quarterlyReportingSnapshotService,
             EarningsCallSummaryService earningsCallSummaryService,
-            CompanyNewsAiSummaryService companyNewsAiSummaryService
+            CompanyNewsAiSummaryService companyNewsAiSummaryService,
+            EarningsAiAnalysisService earningsAiAnalysisService
     ) {
         this.quarterlyReportingSnapshotService = quarterlyReportingSnapshotService;
         this.earningsCallSummaryService = earningsCallSummaryService;
         this.companyNewsAiSummaryService = companyNewsAiSummaryService;
+        this.earningsAiAnalysisService = earningsAiAnalysisService;
     }
 
     @GetMapping("/quarterly/latest")
@@ -125,6 +130,39 @@ public class FinancialsController {
         response.put("modelName", summary.getModelName());
         response.put("promptVersion", summary.getPromptVersion());
         response.put("updatedAt", summary.getUpdatedAt() == null ? null : summary.getUpdatedAt().toString());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/earnings-ai/latest")
+    public ResponseEntity<Map<String, Object>> getLatestEarningsAiAnalysis(
+            @RequestParam(defaultValue = "AAPL") String symbol
+    ) {
+        EarningsAiAnalysis analysis = earningsAiAnalysisService.getLatestBySymbol(symbol);
+        if (analysis == null) {
+            Map<String, Object> notFound = new LinkedHashMap<>();
+            notFound.put("symbol", symbol == null ? "" : symbol.trim().toUpperCase());
+            notFound.put("message", "No earnings AI analysis found");
+            return ResponseEntity.status(404).body(notFound);
+        }
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("symbol", analysis.getSymbol());
+        response.put("fiscalPeriodLabelRaw", analysis.getFiscalPeriodLabel());
+        response.put("fiscalPeriodLabel", normalizeFiscalPeriodLabel(analysis.getFiscalPeriodLabel()));
+        response.put("callDate", analysis.getCallDate() == null ? null : analysis.getCallDate().toString());
+        response.put("source", analysis.getSource());
+        response.put("transcriptUrl", analysis.getTranscriptUrl());
+        response.put("transcriptCharCount", analysis.getTranscriptCharCount());
+        response.put("transcriptSegmentCount", analysis.getTranscriptSegmentCount());
+        response.put("toneAnalyzer", analysis.getToneAnalyzer());
+        response.put("overallTone", analysis.getOverallTone());
+        response.put("keyHighlights", parseStringArray(analysis.getKeyHighlightsJson()));
+        response.put("mainRisksConcerns", parseStringArray(analysis.getMainRisksConcernsJson()));
+        response.put("outlookGuidance", parseStringArray(analysis.getOutlookGuidanceJson()));
+        response.put("provider", analysis.getProvider());
+        response.put("modelName", analysis.getModelName());
+        response.put("promptVersion", analysis.getPromptVersion());
+        response.put("updatedAt", analysis.getUpdatedAt() == null ? null : analysis.getUpdatedAt().toString());
         return ResponseEntity.ok(response);
     }
 

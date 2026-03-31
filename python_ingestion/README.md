@@ -21,6 +21,7 @@ python_ingestion/
 │   ├── apple_news.py      # AAPL company news ingestion
 │   ├── aapl_quarterly_snapshot.py    # AAPL latest quarterly snapshot ingestion
 │   └── aapl_earnings_commentary.py   # AAPL latest earnings call summary ingestion
+│   └── aapl_earnings_ai_analysis.py  # AAPL latest earnings AI analysis
 └── requirements.txt       # Python dependencies
 ```
 
@@ -127,6 +128,21 @@ Notes:
 - The `earnings_call_summary` table is created automatically if it does not exist.
 - Upsert key is `(symbol, fiscal_period_label)` to keep one latest summary per fiscal quarter.
 
+### Apple Earnings AI Analysis (Phase 2 MVP)
+
+Run one-time latest AAPL earnings AI analysis:
+
+```bash
+python -m python_ingestion.jobs.aapl_earnings_ai_analysis
+```
+
+Notes:
+- Scope is fixed to `AAPL` and latest call only.
+- This job reuses Alpha Vantage `EARNINGS` and `EARNINGS_CALL_TRANSCRIPT`.
+- It prepares transcript segments, derives tone signals through a staged FinBERT placeholder layer, and calls the configured LLM for structured output.
+- The `earnings_ai_analysis` table is created automatically if it does not exist.
+- Upsert key is `(symbol, fiscal_period_label)` to keep one AI analysis per fiscal quarter.
+
 ## Features
 
 - **Connection Pooling**: Efficient MySQL connection management
@@ -145,5 +161,4 @@ This Python implementation maintains feature parity with the original JavaScript
 - `SingleCollection.js` → `jobs/historical.py`
 
 All data cleaning, table naming, and insertion logic has been preserved.
-
 
