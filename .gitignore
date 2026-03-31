@@ -284,3 +284,4 @@ python_ingestion/.env
 
 # legacy sensitive folder
 collecting_data_using_js/
+.claude/
