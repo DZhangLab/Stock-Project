@@ -5,98 +5,23 @@ Phase 2 MVP: transcript segmentation + tone signals + LLM structured summary.
 import argparse
 import json
 import logging
-import re
 import time
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..config import load_config
 from ..db import get_db_manager
+from ..earnings_tone import build_earnings_tone_analyzer, EarningsToneAnalysisError
 from ..openai_responses_client import OpenAIResponsesClient
 from .aapl_earnings_commentary import AppleEarningsCommentaryCollector
 
 logger = logging.getLogger(__name__)
 
 
-class EarningsToneAnalyzer:
-    """Clean FinBERT integration point with a deterministic placeholder fallback."""
-
-    POSITIVE_KEYWORDS = [
-        "record", "strong", "improved", "growth", "grew", "accelerated", "expanding",
-        "momentum", "confidence", "healthy", "resilient", "outperformed", "beat",
-        "above", "up", "strength", "opportunity", "efficient", "disciplined",
-    ]
-    NEGATIVE_KEYWORDS = [
-        "risk", "risks", "concern", "concerns", "pressure", "headwind", "headwinds",
-        "decline", "declined", "down", "weakness", "softness", "constraint",
-        "constraints", "challenging", "uncertain", "uncertainty", "difficult",
-        "volatile", "slowdown", "lower", "below",
-    ]
-
-    def __init__(self, mode: str = "placeholder_finbert_v1"):
-        self.mode = mode
-
-    def analyze_segments(self, segments: List[str]) -> Dict[str, Any]:
-        analyzed_segments: List[Dict[str, Any]] = []
-        positive_count = 0
-        negative_count = 0
-        mixed_count = 0
-
-        for index, segment in enumerate(segments):
-            result = self._score_segment(segment)
-            result["index"] = index
-            analyzed_segments.append(result)
-
-            label = result["toneLabel"]
-            if label == "positive":
-                positive_count += 1
-            elif label == "negative":
-                negative_count += 1
-            else:
-                mixed_count += 1
-
-        overall_tone = "mixed"
-        if positive_count > negative_count and positive_count >= max(2, mixed_count):
-            overall_tone = "positive"
-        elif negative_count > positive_count and negative_count >= max(2, mixed_count):
-            overall_tone = "negative"
-
-        return {
-            "analyzer": self.mode,
-            "overallTone": overall_tone,
-            "segmentCount": len(analyzed_segments),
-            "positiveSegmentCount": positive_count,
-            "mixedSegmentCount": mixed_count,
-            "negativeSegmentCount": negative_count,
-            "segments": analyzed_segments,
-        }
-
-    def _score_segment(self, segment: str) -> Dict[str, Any]:
-        text = segment.lower()
-        positive_hits = sum(1 for keyword in self.POSITIVE_KEYWORDS if keyword in text)
-        negative_hits = sum(1 for keyword in self.NEGATIVE_KEYWORDS if keyword in text)
-        score = positive_hits - negative_hits
-
-        if score >= 2:
-            label = "positive"
-        elif score <= -2:
-            label = "negative"
-        else:
-            label = "mixed"
-
-        return {
-            "toneLabel": label,
-            "score": score,
-            "positiveHits": positive_hits,
-            "negativeHits": negative_hits,
-            "excerpt": segment[:280],
-        }
-
-
 class AppleEarningsAIAnalysisCollector:
     SYMBOL = "AAPL"
     SOURCE = "ALPHA_VANTAGE"
-    PROMPT_VERSION = "earnings_ai_analysis_v1"
+    PROMPT_VERSION = "earnings_ai_analysis_v3"
     REQUEST_DELAY_SECONDS = 1.3
     MIN_TRANSCRIPT_CHAR_COUNT = 600
     MIN_SEGMENT_COUNT = 3
@@ -109,7 +34,7 @@ class AppleEarningsAIAnalysisCollector:
         self.db = get_db_manager()
         self.ai_client = OpenAIResponsesClient(self.config.ai)
         self.transcript_collector = AppleEarningsCommentaryCollector()
-        self.tone_analyzer = EarningsToneAnalyzer()
+        self.tone_analyzer = build_earnings_tone_analyzer()
 
     def ensure_table(self) -> bool:
         return self.db.ensure_earnings_ai_analysis_table()
@@ -152,37 +77,6 @@ class AppleEarningsAIAnalysisCollector:
         }
 
     @staticmethod
-    def _normalize_whitespace(value: str) -> str:
-        return re.sub(r"\s+", " ", value or "").strip()
-
-    def _prepare_segments(self, transcript_text: str) -> List[str]:
-        cleaned = transcript_text.replace("\r", "\n")
-        cleaned = re.sub(r"\n{2,}", "\n", cleaned)
-
-        raw_parts = re.split(r"\n(?=[A-Z][A-Za-z .'-]{1,80}:)", cleaned)
-        parts = raw_parts if len(raw_parts) > 1 else re.split(r"(?<=[.!?])\s+", self._normalize_whitespace(cleaned))
-
-        segments: List[str] = []
-        current = ""
-        for part in parts:
-            text = self._normalize_whitespace(part)
-            if len(text) < 40:
-                continue
-            if not current:
-                current = text
-                continue
-            if len(current) + 1 + len(text) <= self.MAX_SEGMENT_CHARS:
-                current = current + " " + text
-                continue
-            segments.append(current)
-            current = text
-
-        if current:
-            segments.append(current)
-
-        return segments
-
-    @staticmethod
     def _response_schema() -> Dict[str, Any]:
         return {
             "type": "object",
@@ -219,6 +113,25 @@ class AppleEarningsAIAnalysisCollector:
             ],
         }
 
+    @staticmethod
+    def _signal_prompt_view(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        result: List[Dict[str, Any]] = []
+        for item in items[:3]:
+            if not isinstance(item, dict):
+                continue
+            result.append(
+                {
+                    "excerpt": item.get("excerpt"),
+                    "toneLabel": item.get("toneLabel"),
+                    "confidence": item.get("confidence"),
+                    "businessPriorityScore": item.get("businessPriorityScore"),
+                    "riskSignalScore": item.get("riskSignalScore"),
+                    "guidanceSignalScore": item.get("guidanceSignalScore"),
+                    "themes": item.get("themes", []),
+                }
+            )
+        return result
+
     def _build_prompt(
         self,
         fiscal_period_label: str,
@@ -227,20 +140,25 @@ class AppleEarningsAIAnalysisCollector:
         tone_summary: Dict[str, Any],
     ) -> Tuple[str, str]:
         instructions = (
-            "You are a financial earnings-call analyst. "
-            "Analyze the latest AAPL earnings call transcript using the provided transcript excerpts and tone summary. "
-            "Keep the answer grounded in transcript evidence, avoid speculation, and return valid JSON matching the schema exactly. "
-            "Tone labels must be one of positive, mixed, or negative. "
-            "Each bullet should be concise and decision-useful."
+            "You are a financial earnings-call summary assistant. "
+            "Use the transcript evidence and FinBERT signal ranking to produce a clean, factual summary of the latest AAPL earnings call. "
+            "Keep the answer grounded in the supplied evidence only and return valid JSON matching the schema exactly. "
+            "Use concise, readable bullets with complete thoughts. "
+            "Prefer factual summary over interpretation, and avoid analyst-style phrasing. "
+            "For highlights, focus on the most important business drivers. "
+            "For risks, include real concerns or watchpoints, not simply slower-growing businesses. "
+            "For outlook, focus on management's forward message and guidance. "
+            "Only include numbers when they help make the point more clear."
         )
 
-        prioritized_segments = sorted(
-            tone_summary.get("segments", []),
-            key=lambda item: (abs(int(item.get("score", 0))), -int(item.get("index", 0))),
-            reverse=True,
+        prioritized_signals = (
+            tone_summary.get("topPositiveSignals", [])
+            + tone_summary.get("topNegativeSignals", [])
+            + tone_summary.get("topGuidanceSignals", [])
+            + tone_summary.get("topCautiousGuidanceSignals", [])
         )
         selected_indexes = sorted(
-            {item.get("index") for item in prioritized_segments[: self.MAX_PROMPT_SEGMENTS // 2]}
+            {item.get("index") for item in prioritized_signals[: self.MAX_PROMPT_SEGMENTS // 2] if isinstance(item.get("index"), int)}
             | set(range(min(len(transcript_segments), self.MAX_PROMPT_SEGMENTS // 2)))
         )
         selected_segments = []
@@ -263,21 +181,24 @@ class AppleEarningsAIAnalysisCollector:
                 "mainRisksConcerns",
                 "outlookGuidance",
             ],
+            "summaryStyle": {
+                "keyHighlights": "Use short factual bullets about the main business positives or important developments.",
+                "mainRisksConcerns": "Use short factual bullets about genuine concerns, pressures, or watchpoints.",
+                "outlookGuidance": "Use short factual bullets about management's forward-looking message or guidance.",
+            },
             "toneSummary": {
                 "analyzer": tone_summary.get("analyzer"),
+                "modelName": tone_summary.get("modelName"),
                 "overallTone": tone_summary.get("overallTone"),
+                "aggregateScore": tone_summary.get("aggregateScore"),
                 "segmentCount": tone_summary.get("segmentCount"),
                 "positiveSegmentCount": tone_summary.get("positiveSegmentCount"),
                 "mixedSegmentCount": tone_summary.get("mixedSegmentCount"),
                 "negativeSegmentCount": tone_summary.get("negativeSegmentCount"),
-                "topToneExcerpts": [
-                    {
-                        "toneLabel": item.get("toneLabel"),
-                        "score": item.get("score"),
-                        "excerpt": item.get("excerpt"),
-                    }
-                    for item in prioritized_segments[:4]
-                ],
+                "topPositiveSignals": self._signal_prompt_view(tone_summary.get("topPositiveSignals", [])),
+                "topNegativeSignals": self._signal_prompt_view(tone_summary.get("topNegativeSignals", [])),
+                "topGuidanceSignals": self._signal_prompt_view(tone_summary.get("topGuidanceSignals", [])),
+                "topCautiousGuidanceSignals": self._signal_prompt_view(tone_summary.get("topCautiousGuidanceSignals", [])),
             },
             "transcriptSegments": selected_segments,
         }
@@ -291,20 +212,34 @@ class AppleEarningsAIAnalysisCollector:
         if overall_tone not in self.ALLOWED_TONES:
             raise ValueError("Model output overallTone is invalid")
 
+        def shorten_complete_text(text: str, limit: int) -> str:
+            if len(text) <= limit:
+                return text
+            sentence_matches = self.tone_analyzer.normalize_whitespace(text[:limit]).split(". ")
+            if len(sentence_matches) > 1:
+                candidate = ". ".join(sentence_matches[:-1]).strip()
+                if candidate and len(candidate) >= max(60, limit // 2):
+                    if not candidate.endswith("."):
+                        candidate += "."
+                    return candidate
+            trimmed = text[:limit].rstrip(" ,;:")
+            return trimmed + "..."
+
         def clean_array(value: Any, field_name: str, minimum: int, maximum: int) -> List[str]:
             if not isinstance(value, list):
                 raise ValueError("Model output %s must be an array" % field_name)
             cleaned: List[str] = []
             seen = set()
+            max_len = 170 if field_name == "keyHighlights" else 155
             for item in value:
-                text = self._normalize_whitespace(str(item))
+                text = self.tone_analyzer.normalize_whitespace(str(item))
                 if not text:
                     continue
                 key = text.lower()
                 if key in seen:
                     continue
                 seen.add(key)
-                cleaned.append(text[:220])
+                cleaned.append(shorten_complete_text(text, max_len))
             if len(cleaned) < minimum or len(cleaned) > maximum:
                 raise ValueError("Model output %s size is invalid" % field_name)
             return cleaned
@@ -336,7 +271,7 @@ class AppleEarningsAIAnalysisCollector:
             transcript_url,
             len(transcript_text),
             len(transcript_segments),
-            str(tone_summary.get("analyzer", "placeholder_finbert_v1"))[:64],
+            str(tone_summary.get("analyzer", "prosusai_finbert_v1"))[:64],
             json.dumps(tone_summary, ensure_ascii=True),
             structured_output["overallTone"],
             json.dumps(structured_output["keyHighlights"], ensure_ascii=True),
@@ -391,7 +326,7 @@ class AppleEarningsAIAnalysisCollector:
             if context is None:
                 return 0
 
-            transcript_text = self._normalize_whitespace(context["transcriptText"])
+            transcript_text = self.tone_analyzer.normalize_whitespace(context["transcriptText"])
             if len(transcript_text) < self.MIN_TRANSCRIPT_CHAR_COUNT:
                 logger.warning(
                     "Transcript text is insufficient for AI analysis: chars=%s period=%s",
@@ -400,10 +335,10 @@ class AppleEarningsAIAnalysisCollector:
                 )
                 return 0
 
-            transcript_segments = self._prepare_segments(transcript_text)
+            transcript_segments = self.tone_analyzer.prepare_segments(transcript_text)
             if len(transcript_segments) < self.MIN_SEGMENT_COUNT:
                 logger.warning(
-                    "Transcript segmentation is insufficient for AI analysis: segments=%s period=%s",
+                    "Transcript segmentation is insufficient for FinBERT analysis: segments=%s period=%s",
                     len(transcript_segments),
                     context["fiscalPeriodLabel"],
                 )
@@ -444,6 +379,9 @@ class AppleEarningsAIAnalysisCollector:
                 structured_output["overallTone"],
             )
             return 1
+        except EarningsToneAnalysisError as e:
+            logger.error("%s", e)
+            return 0
         except ValueError as e:
             logger.error("%s", e)
             return 0

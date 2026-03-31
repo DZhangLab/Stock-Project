@@ -33,6 +33,10 @@ python_ingestion/
 pip install -r requirements.txt
 ```
 
+Notes:
+- FinBERT inference uses Hugging Face `transformers` with `ProsusAI/finbert`.
+- The first live run will download model artifacts unless they are already cached locally.
+
 ### 2. Environment Variables
 
 Create a `.env` file in the `python_ingestion` directory with the following variables:
@@ -139,9 +143,10 @@ python -m python_ingestion.jobs.aapl_earnings_ai_analysis
 Notes:
 - Scope is fixed to `AAPL` and latest call only.
 - This job reuses Alpha Vantage `EARNINGS` and `EARNINGS_CALL_TRANSCRIPT`.
-- It prepares transcript segments, derives tone signals through a staged FinBERT placeholder layer, and calls the configured LLM for structured output.
+- It prepares transcript sentences, runs live FinBERT sentiment inference, and calls the configured LLM for structured output.
 - The `earnings_ai_analysis` table is created automatically if it does not exist.
 - Upsert key is `(symbol, fiscal_period_label)` to keep one AI analysis per fiscal quarter.
+- If the FinBERT model cannot load or usable sentence count is too small, the job fails safely without writing a broken row.
 
 ## Features
 
@@ -161,4 +166,3 @@ This Python implementation maintains feature parity with the original JavaScript
 - `SingleCollection.js` → `jobs/historical.py`
 
 All data cleaning, table naming, and insertion logic has been preserved.
-

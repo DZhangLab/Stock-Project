@@ -24,6 +24,10 @@ public class EarningsAiAnalysisServiceImpl implements EarningsAiAnalysisService 
         if (normalized.isEmpty()) {
             return null;
         }
-        return repository.findTopBySymbolOrderByUpdatedAtDescFiscalPeriodLabelDesc(normalized);
+        Long latestId = repository.findLatestIdBySymbol(normalized);
+        if (latestId == null) {
+            return null;
+        }
+        return repository.findById(latestId).orElse(null);
     }
 }
