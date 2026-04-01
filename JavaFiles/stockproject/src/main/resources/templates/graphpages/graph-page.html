@@ -171,6 +171,10 @@
                         </div>
                     </div>
                     <div class="news-ai-section">
+                        <div style="font-weight: 700;">Management Summary</div>
+                        <p id="earningsAiSummaryText" class="news-ai-detail-text">N/A</p>
+                    </div>
+                    <div class="news-ai-section">
                         <div style="font-weight: 700;">Key Highlights</div>
                         <ul id="earningsAiHighlightsList" style="padding-left: 18px; margin: 6px 0 0 0;"></ul>
                     </div>
@@ -182,54 +186,13 @@
                         <div style="font-weight: 700;">Outlook / Guidance</div>
                         <ul id="earningsAiOutlookList" style="padding-left: 18px; margin: 6px 0 0 0;"></ul>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <h3>Latest Earnings Call Commentary</h3>
-        <div class="panel panel-default" style="margin-bottom: 24px;">
-            <div class="panel-body">
-                <p id="earningsCommentaryStatus" class="text-muted" style="margin-bottom: 12px;">
-                    Loading latest earnings commentary...
-                </p>
-                <div id="earningsCommentaryContent" style="display: none;">
-                    <div class="row" style="margin-bottom: 8px;">
-                        <div class="col-sm-4"><strong>Fiscal Period</strong></div>
-                        <div class="col-sm-8" id="earningsFiscalPeriod">N/A</div>
-                    </div>
-                    <div class="row" style="margin-bottom: 8px;">
-                        <div class="col-sm-4"><strong>Call Date</strong></div>
-                        <div class="col-sm-8" id="earningsCallDate">N/A</div>
-                    </div>
-                    <div class="row" style="margin-bottom: 8px;">
-                        <div class="col-sm-4"><strong>Management Summary</strong></div>
-                        <div class="col-sm-8" id="earningsSummaryText">N/A</div>
-                    </div>
-                    <div class="row" style="margin-bottom: 8px;">
-                        <div class="col-sm-4"><strong>Key Highlights</strong></div>
-                        <div class="col-sm-8">
-                            <ul id="earningsHighlightsList" style="padding-left: 18px; margin: 0;"></ul>
-                        </div>
-                    </div>
-                    <div class="row" style="margin-bottom: 8px;">
-                        <div class="col-sm-4"><strong>Main Risks / Concerns</strong></div>
-                        <div class="col-sm-8">
-                            <ul id="earningsRisksList" style="padding-left: 18px; margin: 0;"></ul>
-                        </div>
-                    </div>
-                    <div class="row" style="margin-bottom: 8px;">
-                        <div class="col-sm-4"><strong>Outlook / Guidance</strong></div>
-                        <div class="col-sm-8">
-                            <ul id="earningsOutlookList" style="padding-left: 18px; margin: 0;"></ul>
-                        </div>
-                    </div>
-                    <div class="row" id="earningsTranscriptRow" style="display: none;">
-                        <div class="col-sm-4"><strong>Transcript Source</strong></div>
-                        <div class="col-sm-8">
-                            <a id="earningsTranscriptLink" href="#" target="_blank" rel="noopener noreferrer">
+                    <div class="news-ai-section" id="earningsAiTranscriptRow" style="display: none;">
+                        <div style="font-weight: 700;">Transcript Source</div>
+                        <p class="news-ai-detail-text" style="margin-top: 4px;">
+                            <a id="earningsAiTranscriptLink" href="#" target="_blank" rel="noopener noreferrer">
                                 Open transcript
                             </a>
-                        </div>
+                        </p>
                     </div>
                 </div>
             </div>
@@ -303,6 +266,38 @@ if (!hasData || !apple || apple.length === 0) {
     console.log("No data to display");
 } else {
     console.log("Data count: " + apple.length);
+}
+</script>
+<script type="text/javascript">
+/* ── Shared helpers (used by multiple cards) ── */
+function normalizeFiscalPeriod(value) {
+    if (value === null || value === undefined || value === "") {
+        return "N/A";
+    }
+    var text = String(value).trim().toUpperCase();
+    if (/^\d{4}Q[1-4]$/.test(text)) {
+        return "FY" + text;
+    }
+    return text;
+}
+
+function shortSummary(value) {
+    if (!value || typeof value !== "string") {
+        return "N/A";
+    }
+    var cleaned = value.replace(/\s+/g, " ").trim();
+    if (!cleaned) {
+        return "N/A";
+    }
+    var sentenceMatches = cleaned.match(/[^.!?]+[.!?]?/g) || [];
+    var brief = sentenceMatches.slice(0, 2).join(" ").trim();
+    if (!brief) {
+        brief = cleaned;
+    }
+    if (brief.length > 420) {
+        brief = brief.slice(0, 420).trim() + "...";
+    }
+    return brief;
 }
 </script>
 <script type="text/javascript">
@@ -515,10 +510,28 @@ if (!hasData || !apple || apple.length === 0) {
         }
     }
 
-    function showEarningsAi(data) {
+    function renderTranscriptLink(url) {
+        var rowEl = document.getElementById("earningsAiTranscriptRow");
+        var linkEl = document.getElementById("earningsAiTranscriptLink");
+        if (!linkEl || !rowEl) {
+            return;
+        }
+        var text = (typeof url === "string") ? url.trim() : "";
+        var lower = text.toLowerCase();
+        var isMissing = !text || lower === "n/a" || lower === "na" || lower === "null" || lower === "undefined";
+        if (!isMissing) {
+            linkEl.href = text;
+            rowEl.style.display = "block";
+        } else {
+            rowEl.style.display = "none";
+        }
+    }
+
+    function showEarningsAi(aiData, commentaryData) {
         var statusEl = document.getElementById("earningsAiStatus");
         var contentEl = document.getElementById("earningsAiContent");
         var metaEl = document.getElementById("earningsAiMeta");
+        var summaryEl = document.getElementById("earningsAiSummaryText");
 
         if (statusEl) {
             statusEl.style.display = "none";
@@ -527,29 +540,59 @@ if (!hasData || !apple || apple.length === 0) {
             contentEl.style.display = "block";
         }
 
-        setToneBadge(data.overallTone);
+        setToneBadge(aiData.overallTone);
         if (metaEl) {
             metaEl.textContent =
-                safeText(data.fiscalPeriodLabel) + " | Call Date: " + safeText(data.callDate);
+                safeText(aiData.fiscalPeriodLabel) + " | Call Date: " + safeText(aiData.callDate);
         }
-        renderList("earningsAiHighlightsList", data.keyHighlights, "No highlights available.");
-        renderList("earningsAiRisksList", data.mainRisksConcerns, "No material risks highlighted.");
-        renderList("earningsAiOutlookList", data.outlookGuidance, "No outlook guidance highlighted.");
+
+        /* Management summary from commentary endpoint */
+        if (summaryEl) {
+            if (commentaryData && commentaryData.summaryText) {
+                summaryEl.textContent = shortSummary(commentaryData.summaryText);
+            } else {
+                summaryEl.textContent = "N/A";
+            }
+        }
+
+        renderList("earningsAiHighlightsList", aiData.keyHighlights, "No highlights available.");
+        renderList("earningsAiRisksList", aiData.mainRisksConcerns, "No material risks highlighted.");
+        renderList("earningsAiOutlookList", aiData.outlookGuidance, "No outlook guidance highlighted.");
+
+        /* Transcript link from commentary endpoint */
+        if (commentaryData && commentaryData.transcriptUrl) {
+            renderTranscriptLink(commentaryData.transcriptUrl);
+        }
     }
 
-    fetch("/api/financials/earnings-ai/latest?symbol=AAPL")
+    var aiPromise = fetch("/api/financials/earnings-ai/latest?symbol=AAPL")
         .then(function(response) {
             if (!response.ok) {
                 throw new Error("no earnings ai analysis");
             }
             return response.json();
+        });
+
+    var commentaryPromise = fetch("/api/financials/earnings/latest?symbol=AAPL")
+        .then(function(response) {
+            if (!response.ok) {
+                return null;
+            }
+            return response.json();
         })
-        .then(function(data) {
-            if (!data || typeof data !== "object") {
+        .catch(function() {
+            return null;
+        });
+
+    Promise.all([aiPromise, commentaryPromise])
+        .then(function(results) {
+            var aiData = results[0];
+            var commentaryData = results[1];
+            if (!aiData || typeof aiData !== "object") {
                 showEarningsAiFallback("AI earnings analysis is not available yet.");
                 return;
             }
-            showEarningsAi(data);
+            showEarningsAi(aiData, commentaryData);
         })
         .catch(function() {
             showEarningsAiFallback("AI earnings analysis is not available yet. Please run the earnings AI job and try again.");
@@ -567,130 +610,6 @@ if (!hasData || !apple || apple.length === 0) {
             return "N/A";
         }
         return String(value);
-    }
-
-    function normalizeFiscalPeriod(value) {
-        if (value === null || value === undefined || value === "") {
-            return "N/A";
-        }
-        var text = String(value).trim().toUpperCase();
-        if (/^\d{4}Q[1-4]$/.test(text)) {
-            return "FY" + text;
-        }
-        return text;
-    }
-
-    function shortSummary(value) {
-        if (!value || typeof value !== "string") {
-            return "N/A";
-        }
-        var cleaned = value.replace(/\s+/g, " ").trim();
-        if (!cleaned) {
-            return "N/A";
-        }
-        var sentenceMatches = cleaned.match(/[^.!?]+[.!?]?/g) || [];
-        var brief = sentenceMatches.slice(0, 2).join(" ").trim();
-        if (!brief) {
-            brief = cleaned;
-        }
-        if (brief.length > 420) {
-            brief = brief.slice(0, 420).trim() + "...";
-        }
-        return brief;
-    }
-
-    function normalizeFiscalPeriod(value) {
-        if (value === null || value === undefined || value === "") {
-            return "N/A";
-        }
-        var text = String(value).trim().toUpperCase();
-        if (/^\d{4}Q[1-4]$/.test(text)) {
-            return "FY" + text;
-        }
-        return text;
-    }
-
-    function shortSummary(value) {
-        if (!value || typeof value !== "string") {
-            return "N/A";
-        }
-        var cleaned = value.replace(/\s+/g, " ").trim();
-        if (!cleaned) {
-            return "N/A";
-        }
-        var sentenceMatches = cleaned.match(/[^.!?]+[.!?]?/g) || [];
-        var brief = sentenceMatches.slice(0, 2).join(" ").trim();
-        if (!brief) {
-            brief = cleaned;
-        }
-        if (brief.length > 420) {
-            brief = brief.slice(0, 420).trim() + "...";
-        }
-        return brief;
-    }
-
-    function normalizeFiscalPeriod(value) {
-        if (value === null || value === undefined || value === "") {
-            return "N/A";
-        }
-        var text = String(value).trim().toUpperCase();
-        if (/^\d{4}Q[1-4]$/.test(text)) {
-            return "FY" + text;
-        }
-        return text;
-    }
-
-    function shortSummary(value) {
-        if (!value || typeof value !== "string") {
-            return "N/A";
-        }
-        var cleaned = value.replace(/\s+/g, " ").trim();
-        if (!cleaned) {
-            return "N/A";
-        }
-        var sentences = cleaned.split(/(?<=[.!?])\s+/).filter(function(item) {
-            return item && item.trim() !== "";
-        });
-        var brief = sentences.slice(0, 2).join(" ").trim();
-        if (!brief) {
-            brief = cleaned;
-        }
-        if (brief.length > 420) {
-            brief = brief.slice(0, 420).trim() + "...";
-        }
-        return brief;
-    }
-
-    function normalizeFiscalPeriod(value) {
-        if (value === null || value === undefined || value === "") {
-            return "N/A";
-        }
-        var text = String(value).trim().toUpperCase();
-        if (/^\d{4}Q[1-4]$/.test(text)) {
-            return "FY" + text;
-        }
-        return text;
-    }
-
-    function shortSummary(value) {
-        if (!value || typeof value !== "string") {
-            return "N/A";
-        }
-        var cleaned = value.replace(/\s+/g, " ").trim();
-        if (!cleaned) {
-            return "N/A";
-        }
-        var sentences = cleaned.split(/(?<=[.!?])\s+/).filter(function(item) {
-            return item && item.trim() !== "";
-        });
-        var brief = sentences.slice(0, 2).join(" ").trim();
-        if (!brief) {
-            brief = cleaned;
-        }
-        if (brief.length > 420) {
-            brief = brief.slice(0, 420).trim() + "...";
-        }
-        return brief;
     }
 
     function formatMoney(value) {
@@ -779,222 +698,6 @@ if (!hasData || !apple || apple.length === 0) {
         })
         .catch(function() {
             showFallback("Quarterly snapshot is not available yet. Please run ingestion and try again.");
-        });
-})();
-</script>
-<script type="text/javascript">
-(function() {
-    if (!symbol || symbol.toUpperCase() !== "AAPL") {
-        return;
-    }
-
-    function safeText(value) {
-        if (value === null || value === undefined || value === "") {
-            return "N/A";
-        }
-        return String(value);
-    }
-
-    function setText(id, text) {
-        var el = document.getElementById(id);
-        if (el) {
-            el.textContent = text;
-        }
-    }
-
-    function showCommentaryFallback(message) {
-        var statusEl = document.getElementById("earningsCommentaryStatus");
-        var contentEl = document.getElementById("earningsCommentaryContent");
-        if (statusEl) {
-            statusEl.textContent = message;
-            statusEl.className = "text-muted";
-            statusEl.style.display = "block";
-        }
-        if (contentEl) {
-            contentEl.style.display = "none";
-        }
-    }
-
-    function parseLegacyTakeaways(rawJson) {
-        var sections = {
-            keyHighlights: [],
-            mainRisksConcerns: [],
-            outlookGuidance: []
-        };
-        if (!rawJson) {
-            return sections;
-        }
-        try {
-            var parsed = JSON.parse(rawJson);
-            if (!Array.isArray(parsed)) {
-                return sections;
-            }
-            parsed.forEach(function(item) {
-                if (typeof item !== "string") {
-                    return;
-                }
-                var text = item.trim();
-                if (!text) {
-                    return;
-                }
-                var lower = text.toLowerCase();
-                if (lower.indexOf("key highlights:") === 0) {
-                    sections.keyHighlights.push(text.substring("Key Highlights:".length).trim());
-                } else if (lower.indexOf("main risks / concerns:") === 0) {
-                    sections.mainRisksConcerns.push(text.substring("Main Risks / Concerns:".length).trim());
-                } else if (lower.indexOf("outlook / guidance:") === 0) {
-                    sections.outlookGuidance.push(text.substring("Outlook / Guidance:".length).trim());
-                } else {
-                    sections.keyHighlights.push(text);
-                }
-            });
-        } catch (e) {
-            // Keep silent and fallback to empty sections.
-        }
-        return sections;
-    }
-
-    function renderSectionList(listId, items, emptyText) {
-        var listEl = document.getElementById(listId);
-        if (!listEl) {
-            return;
-        }
-        listEl.innerHTML = "";
-        var seen = {};
-        var content = [];
-        if (Array.isArray(items)) {
-            items.forEach(function(item) {
-                if (typeof item !== "string") {
-                    return;
-                }
-                var text = item.replace(/\s+/g, " ").trim();
-                if (!text) {
-                    return;
-                }
-                var key = text.toLowerCase();
-                if (seen[key]) {
-                    return;
-                }
-                seen[key] = true;
-                if (text.length > 220) {
-                    text = text.slice(0, 220).trim() + "...";
-                }
-                content.push(text);
-            });
-            content = content.slice(0, 2);
-        }
-        if (!content.length) {
-            var li = document.createElement("li");
-            li.textContent = emptyText;
-            listEl.appendChild(li);
-            return;
-        }
-        content.forEach(function(item) {
-            var li = document.createElement("li");
-            li.textContent = item;
-            listEl.appendChild(li);
-        });
-    }
-
-    function renderTranscriptLink(url) {
-        var rowEl = document.getElementById("earningsTranscriptRow");
-        var linkEl = document.getElementById("earningsTranscriptLink");
-        if (!linkEl || !rowEl) {
-            return;
-        }
-        var text = (typeof url === "string") ? url.trim() : "";
-        var lower = text.toLowerCase();
-        var isMissing = !text || lower === "n/a" || lower === "na" || lower === "null" || lower === "undefined";
-        if (!isMissing) {
-            linkEl.href = text;
-            rowEl.style.display = "block";
-        } else {
-            rowEl.style.display = "none";
-        }
-    }
-
-    function normalizeFiscalPeriod(value) {
-        if (value === null || value === undefined || value === "") {
-            return "N/A";
-        }
-        var text = String(value).trim().toUpperCase();
-        if (/^\d{4}Q[1-4]$/.test(text)) {
-            return "FY" + text;
-        }
-        return text;
-    }
-
-    function shortSummary(value) {
-        if (!value || typeof value !== "string") {
-            return "N/A";
-        }
-        var cleaned = value.replace(/\s+/g, " ").trim();
-        if (!cleaned) {
-            return "N/A";
-        }
-        var sentenceMatches = cleaned.match(/[^.!?]+[.!?]?/g) || [];
-        var brief = sentenceMatches.slice(0, 2).join(" ").trim();
-        if (!brief) {
-            brief = cleaned;
-        }
-        if (brief.length > 420) {
-            brief = brief.slice(0, 420).trim() + "...";
-        }
-        return brief;
-    }
-
-    function showCommentary(data) {
-        var statusEl = document.getElementById("earningsCommentaryStatus");
-        var contentEl = document.getElementById("earningsCommentaryContent");
-        if (statusEl) {
-            statusEl.style.display = "none";
-        }
-        if (contentEl) {
-            contentEl.style.display = "block";
-        }
-
-        setText("earningsFiscalPeriod", normalizeFiscalPeriod(data.fiscalPeriodLabel));
-        setText("earningsCallDate", safeText(data.callDate));
-        setText("earningsSummaryText", shortSummary(data.summaryText));
-
-        var sections = {
-            keyHighlights: Array.isArray(data.keyHighlights) ? data.keyHighlights : [],
-            mainRisksConcerns: Array.isArray(data.mainRisksConcerns) ? data.mainRisksConcerns : [],
-            outlookGuidance: Array.isArray(data.outlookGuidance) ? data.outlookGuidance : []
-        };
-        if (!sections.keyHighlights.length && !sections.mainRisksConcerns.length && !sections.outlookGuidance.length) {
-            sections = parseLegacyTakeaways(data.keyTakeawaysJson);
-        }
-
-        renderSectionList("earningsHighlightsList", sections.keyHighlights, "No highlights available.");
-        renderSectionList("earningsRisksList", sections.mainRisksConcerns, "No material risks highlighted.");
-        renderSectionList("earningsOutlookList", sections.outlookGuidance, "No outlook guidance highlighted.");
-        renderTranscriptLink(data.transcriptUrl);
-    }
-
-    fetch("/api/financials/earnings/latest?symbol=AAPL")
-        .then(function(response) {
-            if (!response.ok) {
-                throw new Error("no earnings commentary");
-            }
-            return response.json();
-        })
-        .then(function(data) {
-            console.log("[earnings] payload:", data);
-            if (!data || typeof data !== "object") {
-                showCommentaryFallback("Earnings commentary is not available yet.");
-                return;
-            }
-            console.log("[earnings] sections before render:", {
-                keyHighlights: data.keyHighlights,
-                mainRisksConcerns: data.mainRisksConcerns,
-                outlookGuidance: data.outlookGuidance
-            });
-            showCommentary(data);
-        })
-        .catch(function(error) {
-            console.error("[earnings] render failed:", error);
-            showCommentaryFallback("Earnings commentary could not be rendered on this page. Please refresh and check console logs.");
         });
 })();
 </script>
