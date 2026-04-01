@@ -549,7 +549,7 @@ function shortSummary(value) {
         /* Management summary from commentary endpoint */
         if (summaryEl) {
             if (commentaryData && commentaryData.summaryText) {
-                summaryEl.textContent = shortSummary(commentaryData.summaryText);
+                summaryEl.textContent = commentaryData.summaryText;
             } else {
                 summaryEl.textContent = "N/A";
             }
