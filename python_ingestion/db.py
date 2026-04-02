@@ -445,6 +445,30 @@ class DatabaseManager:
             logger.error(f"Error creating table earnings_ai_analysis: {e}")
             return False
     
+    def has_valid_earnings_call_summary(self, symbol: str, fiscal_period_label: str) -> bool:
+        """Return True if a complete earnings call summary exists for the given quarter."""
+        rows = self.execute(
+            "SELECT summary_text FROM earnings_call_summary "
+            "WHERE symbol = %s AND fiscal_period_label = %s LIMIT 1",
+            (symbol, fiscal_period_label),
+        )
+        if not rows:
+            return False
+        summary = rows[0][0] if rows[0] else None
+        return bool(summary and str(summary).strip())
+
+    def has_valid_earnings_ai_analysis(self, symbol: str, fiscal_period_label: str) -> bool:
+        """Return True if a complete AI earnings analysis exists for the given quarter."""
+        rows = self.execute(
+            "SELECT overall_tone FROM earnings_ai_analysis "
+            "WHERE symbol = %s AND fiscal_period_label = %s LIMIT 1",
+            (symbol, fiscal_period_label),
+        )
+        if not rows:
+            return False
+        tone = rows[0][0] if rows[0] else None
+        return bool(tone and str(tone).strip())
+
     def close_pool(self):
         """Close all connections in the pool."""
         if self.pool:

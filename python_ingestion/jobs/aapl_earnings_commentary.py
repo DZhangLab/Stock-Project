@@ -121,6 +121,16 @@ class AppleEarningsCommentaryCollector:
         return valid_rows[0] if valid_rows else None
 
     @staticmethod
+    def _recent_earnings_rows(payload: Dict[str, Any], n: int = 4) -> List[Dict[str, Any]]:
+        """Return the *n* most recent quarterly earnings rows."""
+        rows = payload.get("quarterlyEarnings", [])
+        if not isinstance(rows, list):
+            return []
+        valid = [r for r in rows if isinstance(r, dict)]
+        valid.sort(key=lambda r: str(r.get("fiscalDateEnding", "")), reverse=True)
+        return valid[:n]
+
+    @staticmethod
     def _extract_transcript_text(payload: Dict[str, Any]) -> str:
         def _collect_chunks(rows: List[Any]) -> List[str]:
             chunks: List[str] = []
@@ -398,14 +408,87 @@ class AppleEarningsCommentaryCollector:
             return 0
 
 
+    def collect_recent_commentary(self, max_quarters: int = 4) -> int:
+        """Fetch and persist commentary for the most recent *max_quarters* quarters."""
+        if not self.ensure_table():
+            logger.error("Failed to ensure earnings_call_summary table")
+            return 0
+
+        try:
+            earnings_payload = self.api_client.get_earnings(self.SYMBOL)
+        except (ValueError, Exception) as e:
+            logger.error("Error fetching earnings data: %s", e)
+            return 0
+
+        rows = self._recent_earnings_rows(earnings_payload, max_quarters)
+        if not rows:
+            logger.warning("No quarterly earnings rows found for %s", self.SYMBOL)
+            return 0
+
+        saved = 0
+        for row in rows:
+            fiscal_date = self._parse_date(row.get("fiscalDateEnding"))
+            if fiscal_date is None:
+                continue
+
+            fiscal_period_label = self._derive_period_label(fiscal_date)
+            call_date = self._parse_date(row.get("reportedDate"))
+
+            # Skip if a valid summary already exists for this quarter.
+            if self.db.has_valid_earnings_call_summary(self.SYMBOL, fiscal_period_label):
+                logger.debug("Skipping %s %s — valid summary already exists", self.SYMBOL, fiscal_period_label)
+                continue
+
+            time.sleep(self.REQUEST_DELAY_SECONDS)
+            try:
+                transcript_payload = self.api_client.get_earnings_call_transcript(
+                    self.SYMBOL, fiscal_period_label
+                )
+            except Exception as e:
+                logger.warning("Failed to fetch transcript for %s %s: %s", self.SYMBOL, fiscal_period_label, e)
+                continue
+
+            if not isinstance(transcript_payload, dict):
+                logger.warning("Transcript payload is not a dict for %s %s", self.SYMBOL, fiscal_period_label)
+                continue
+
+            transcript_text = self._extract_transcript_text(transcript_payload)
+            if not transcript_text.strip():
+                logger.warning("Empty transcript for %s %s, skipping", self.SYMBOL, fiscal_period_label)
+                continue
+
+            summary_text, takeaways = self._generate_summary(transcript_text)
+            transcript_url = transcript_payload.get("url")
+            if transcript_url is not None:
+                transcript_url = str(transcript_url).strip()[:1024] or None
+
+            params = self._build_params(
+                fiscal_period_label=fiscal_period_label,
+                call_date=call_date,
+                summary_text=summary_text,
+                key_takeaways=takeaways,
+                transcript_url=transcript_url,
+                raw_payload=transcript_payload,
+            )
+            try:
+                self.persist_summary(params)
+                saved += 1
+                logger.info("Saved AAPL earnings commentary: period=%s", fiscal_period_label)
+            except Exception as e:
+                logger.error("Error persisting commentary for %s: %s", fiscal_period_label, e)
+
+        logger.info("Saved %d earnings commentary summaries for %s", saved, self.SYMBOL)
+        return saved
+
+
 def run_aapl_earnings_commentary_once() -> int:
     collector = AppleEarningsCommentaryCollector()
-    return collector.collect_latest_commentary()
+    return collector.collect_recent_commentary()
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Collect latest AAPL earnings call transcript and store management summary"
+        description="Collect AAPL earnings call transcripts and store management summaries"
     )
     parser.parse_args()
     rows = run_aapl_earnings_commentary_once()

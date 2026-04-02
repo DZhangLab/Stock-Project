@@ -24,6 +24,22 @@ public class EarningsCallSummaryServiceImpl implements EarningsCallSummaryServic
         if (normalized.isEmpty()) {
             return null;
         }
-        return repository.findTopBySymbolOrderByUpdatedAtDescFiscalPeriodLabelDesc(normalized);
+        return repository.findTopBySymbolOrderByFiscalPeriodLabelDesc(normalized);
+    }
+
+    @Override
+    public EarningsCallSummary getBySymbolAndPeriod(String symbol, String period) {
+        if (symbol == null || period == null) {
+            return null;
+        }
+        String normalizedSymbol = symbol.trim().toUpperCase();
+        String normalizedPeriod = period.trim().toUpperCase();
+        if (normalizedPeriod.startsWith("FY")) {
+            normalizedPeriod = normalizedPeriod.substring(2);
+        }
+        if (normalizedSymbol.isEmpty() || normalizedPeriod.isEmpty()) {
+            return null;
+        }
+        return repository.findBySymbolAndFiscalPeriodLabel(normalizedSymbol, normalizedPeriod);
     }
 }

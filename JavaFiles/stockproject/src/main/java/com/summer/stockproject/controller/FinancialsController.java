@@ -102,22 +102,22 @@ public class FinancialsController {
             notFound.put("message", "No earnings call summary found");
             return ResponseEntity.status(404).body(notFound);
         }
+        return ResponseEntity.ok(buildCommentaryResponse(summary));
+    }
 
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("symbol", summary.getSymbol());
-        response.put("fiscalPeriodLabelRaw", summary.getFiscalPeriodLabel());
-        response.put("fiscalPeriodLabel", normalizeFiscalPeriodLabel(summary.getFiscalPeriodLabel()));
-        response.put("callDate", summary.getCallDate() == null ? null : summary.getCallDate().toString());
-        response.put("source", summary.getSource());
-        response.put("summaryText", summary.getSummaryText());
-        response.put("keyTakeawaysJson", summary.getKeyTakeawaysJson());
-        Map<String, List<String>> sections = parseTakeawaySections(summary.getKeyTakeawaysJson());
-        response.put("keyHighlights", sections.get("keyHighlights"));
-        response.put("mainRisksConcerns", sections.get("mainRisksConcerns"));
-        response.put("outlookGuidance", sections.get("outlookGuidance"));
-        response.put("transcriptUrl", summary.getTranscriptUrl());
-        response.put("updatedAt", summary.getUpdatedAt() == null ? null : summary.getUpdatedAt().toString());
-        return ResponseEntity.ok(response);
+    @GetMapping("/earnings")
+    public ResponseEntity<Map<String, Object>> getEarningsCommentaryByPeriod(
+            @RequestParam(defaultValue = "AAPL") String symbol,
+            @RequestParam String period
+    ) {
+        EarningsCallSummary summary = earningsCallSummaryService.getBySymbolAndPeriod(symbol, period);
+        if (summary == null) {
+            Map<String, Object> notFound = new LinkedHashMap<>();
+            notFound.put("symbol", symbol == null ? "" : symbol.trim().toUpperCase());
+            notFound.put("message", "No earnings call summary found for period " + period);
+            return ResponseEntity.status(404).body(notFound);
+        }
+        return ResponseEntity.ok(buildCommentaryResponse(summary));
     }
 
     @GetMapping("/news-ai/latest")
@@ -150,6 +150,21 @@ public class FinancialsController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/earnings-ai/periods")
+    public ResponseEntity<Map<String, Object>> getEarningsAiPeriods(
+            @RequestParam(defaultValue = "AAPL") String symbol
+    ) {
+        List<String> rawPeriods = earningsAiAnalysisService.getPeriodsBySymbol(symbol);
+        List<String> periods = new ArrayList<>();
+        for (String p : rawPeriods) {
+            periods.add(normalizeFiscalPeriodLabel(p));
+        }
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("symbol", symbol == null ? "" : symbol.trim().toUpperCase());
+        response.put("periods", periods);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/earnings-ai/latest")
     public ResponseEntity<Map<String, Object>> getLatestEarningsAiAnalysis(
             @RequestParam(defaultValue = "AAPL") String symbol
@@ -161,7 +176,43 @@ public class FinancialsController {
             notFound.put("message", "No earnings AI analysis found");
             return ResponseEntity.status(404).body(notFound);
         }
+        return ResponseEntity.ok(buildEarningsAiResponse(analysis));
+    }
 
+    @GetMapping("/earnings-ai")
+    public ResponseEntity<Map<String, Object>> getEarningsAiByPeriod(
+            @RequestParam(defaultValue = "AAPL") String symbol,
+            @RequestParam String period
+    ) {
+        EarningsAiAnalysis analysis = earningsAiAnalysisService.getBySymbolAndPeriod(symbol, period);
+        if (analysis == null) {
+            Map<String, Object> notFound = new LinkedHashMap<>();
+            notFound.put("symbol", symbol == null ? "" : symbol.trim().toUpperCase());
+            notFound.put("message", "No earnings AI analysis found for period " + period);
+            return ResponseEntity.status(404).body(notFound);
+        }
+        return ResponseEntity.ok(buildEarningsAiResponse(analysis));
+    }
+
+    private Map<String, Object> buildCommentaryResponse(EarningsCallSummary summary) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("symbol", summary.getSymbol());
+        response.put("fiscalPeriodLabelRaw", summary.getFiscalPeriodLabel());
+        response.put("fiscalPeriodLabel", normalizeFiscalPeriodLabel(summary.getFiscalPeriodLabel()));
+        response.put("callDate", summary.getCallDate() == null ? null : summary.getCallDate().toString());
+        response.put("source", summary.getSource());
+        response.put("summaryText", summary.getSummaryText());
+        response.put("keyTakeawaysJson", summary.getKeyTakeawaysJson());
+        Map<String, List<String>> sections = parseTakeawaySections(summary.getKeyTakeawaysJson());
+        response.put("keyHighlights", sections.get("keyHighlights"));
+        response.put("mainRisksConcerns", sections.get("mainRisksConcerns"));
+        response.put("outlookGuidance", sections.get("outlookGuidance"));
+        response.put("transcriptUrl", summary.getTranscriptUrl());
+        response.put("updatedAt", summary.getUpdatedAt() == null ? null : summary.getUpdatedAt().toString());
+        return response;
+    }
+
+    private Map<String, Object> buildEarningsAiResponse(EarningsAiAnalysis analysis) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("symbol", analysis.getSymbol());
         response.put("fiscalPeriodLabelRaw", analysis.getFiscalPeriodLabel());
@@ -180,7 +231,7 @@ public class FinancialsController {
         response.put("modelName", analysis.getModelName());
         response.put("promptVersion", analysis.getPromptVersion());
         response.put("updatedAt", analysis.getUpdatedAt() == null ? null : analysis.getUpdatedAt().toString());
-        return ResponseEntity.ok(response);
+        return response;
     }
 
     private String normalizeFiscalPeriodLabel(String value) {

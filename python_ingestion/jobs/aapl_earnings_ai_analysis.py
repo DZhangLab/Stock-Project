@@ -39,6 +39,38 @@ class AppleEarningsAIAnalysisCollector:
     def ensure_table(self) -> bool:
         return self.db.ensure_earnings_ai_analysis_table()
 
+    def _load_transcript_context_for_quarter(
+        self,
+        fiscal_period_label: str,
+        call_date: Optional[date],
+    ) -> Optional[Dict[str, Any]]:
+        """Fetch transcript for a specific quarter and return context dict."""
+        time.sleep(self.REQUEST_DELAY_SECONDS)
+        transcript_payload = self.transcript_collector.api_client.get_earnings_call_transcript(
+            self.SYMBOL,
+            fiscal_period_label,
+        )
+        if not isinstance(transcript_payload, dict):
+            logger.warning("Transcript payload is not a dict for %s %s", self.SYMBOL, fiscal_period_label)
+            return None
+
+        transcript_text = AppleEarningsCommentaryCollector._extract_transcript_text(transcript_payload)
+        if not transcript_text.strip():
+            logger.warning("Empty transcript for %s %s", self.SYMBOL, fiscal_period_label)
+            return None
+
+        transcript_url = transcript_payload.get("url")
+        if transcript_url is not None:
+            transcript_url = str(transcript_url).strip()[:1024] or None
+
+        return {
+            "fiscalPeriodLabel": fiscal_period_label,
+            "callDate": call_date,
+            "transcriptPayload": transcript_payload,
+            "transcriptText": transcript_text,
+            "transcriptUrl": transcript_url,
+        }
+
     def _load_latest_transcript_context(self) -> Optional[Dict[str, Any]]:
         earnings_payload = self.transcript_collector.api_client.get_earnings(self.SYMBOL)
         latest = AppleEarningsCommentaryCollector._latest_earnings_row(earnings_payload)
@@ -53,28 +85,7 @@ class AppleEarningsAIAnalysisCollector:
 
         fiscal_period_label = AppleEarningsCommentaryCollector._derive_period_label(fiscal_date)
         call_date = AppleEarningsCommentaryCollector._parse_date(latest.get("reportedDate"))
-
-        time.sleep(self.REQUEST_DELAY_SECONDS)
-        transcript_payload = self.transcript_collector.api_client.get_earnings_call_transcript(
-            self.SYMBOL,
-            fiscal_period_label,
-        )
-        if not isinstance(transcript_payload, dict):
-            logger.warning("Transcript payload is not a dict for %s %s", self.SYMBOL, fiscal_period_label)
-            transcript_payload = {}
-
-        transcript_text = AppleEarningsCommentaryCollector._extract_transcript_text(transcript_payload)
-        transcript_url = transcript_payload.get("url")
-        if transcript_url is not None:
-            transcript_url = str(transcript_url).strip()[:1024] or None
-
-        return {
-            "fiscalPeriodLabel": fiscal_period_label,
-            "callDate": call_date,
-            "transcriptPayload": transcript_payload,
-            "transcriptText": transcript_text,
-            "transcriptUrl": transcript_url,
-        }
+        return self._load_transcript_context_for_quarter(fiscal_period_label, call_date)
 
     @staticmethod
     def _response_schema() -> Dict[str, Any]:
@@ -317,68 +328,15 @@ class AppleEarningsAIAnalysisCollector:
         return 1
 
     def collect_latest_analysis(self) -> int:
+        """Analyze only the latest quarter (legacy entry point)."""
         if not self.ensure_table():
             logger.error("Failed to ensure earnings_ai_analysis table")
             return 0
-
         try:
             context = self._load_latest_transcript_context()
             if context is None:
                 return 0
-
-            transcript_text = self.tone_analyzer.normalize_whitespace(context["transcriptText"])
-            if len(transcript_text) < self.MIN_TRANSCRIPT_CHAR_COUNT:
-                logger.warning(
-                    "Transcript text is insufficient for AI analysis: chars=%s period=%s",
-                    len(transcript_text),
-                    context["fiscalPeriodLabel"],
-                )
-                return 0
-
-            transcript_segments = self.tone_analyzer.prepare_segments(transcript_text)
-            if len(transcript_segments) < self.MIN_SEGMENT_COUNT:
-                logger.warning(
-                    "Transcript segmentation is insufficient for FinBERT analysis: segments=%s period=%s",
-                    len(transcript_segments),
-                    context["fiscalPeriodLabel"],
-                )
-                return 0
-
-            tone_summary = self.tone_analyzer.analyze_segments(transcript_segments)
-            instructions, prompt_input = self._build_prompt(
-                fiscal_period_label=context["fiscalPeriodLabel"],
-                call_date=context["callDate"],
-                transcript_segments=transcript_segments,
-                tone_summary=tone_summary,
-            )
-            raw_model_response = self.ai_client.create_structured_response(
-                instructions=instructions,
-                input_text=prompt_input,
-                schema_name="earnings_ai_analysis",
-                schema=self._response_schema(),
-            )
-            parsed_output = OpenAIResponsesClient.extract_json_output(raw_model_response)
-            structured_output = self._validate_model_output(parsed_output)
-
-            params = self._build_insert_params(
-                fiscal_period_label=context["fiscalPeriodLabel"],
-                call_date=context["callDate"],
-                transcript_url=context["transcriptUrl"],
-                transcript_text=transcript_text,
-                transcript_segments=transcript_segments,
-                tone_summary=tone_summary,
-                structured_output=structured_output,
-                raw_model_response=raw_model_response,
-                raw_transcript_payload=context["transcriptPayload"],
-            )
-            self.persist_analysis(params)
-            logger.info(
-                "Saved AAPL earnings AI analysis: period=%s call_date=%s tone=%s",
-                context["fiscalPeriodLabel"],
-                context["callDate"],
-                structured_output["overallTone"],
-            )
-            return 1
+            return 1 if self._analyze_single_quarter(context) else 0
         except EarningsToneAnalysisError as e:
             logger.error("%s", e)
             return 0
@@ -390,14 +348,113 @@ class AppleEarningsAIAnalysisCollector:
             return 0
 
 
+    def _analyze_single_quarter(self, context: Dict[str, Any]) -> bool:
+        """Run FinBERT + GPT analysis for a single quarter context. Returns True on success."""
+        transcript_text = self.tone_analyzer.normalize_whitespace(context["transcriptText"])
+        if len(transcript_text) < self.MIN_TRANSCRIPT_CHAR_COUNT:
+            logger.warning(
+                "Transcript too short for AI analysis: chars=%s period=%s",
+                len(transcript_text), context["fiscalPeriodLabel"],
+            )
+            return False
+
+        transcript_segments = self.tone_analyzer.prepare_segments(transcript_text)
+        if len(transcript_segments) < self.MIN_SEGMENT_COUNT:
+            logger.warning(
+                "Too few segments for FinBERT: segments=%s period=%s",
+                len(transcript_segments), context["fiscalPeriodLabel"],
+            )
+            return False
+
+        tone_summary = self.tone_analyzer.analyze_segments(transcript_segments)
+        instructions, prompt_input = self._build_prompt(
+            fiscal_period_label=context["fiscalPeriodLabel"],
+            call_date=context["callDate"],
+            transcript_segments=transcript_segments,
+            tone_summary=tone_summary,
+        )
+        raw_model_response = self.ai_client.create_structured_response(
+            instructions=instructions,
+            input_text=prompt_input,
+            schema_name="earnings_ai_analysis",
+            schema=self._response_schema(),
+        )
+        parsed_output = OpenAIResponsesClient.extract_json_output(raw_model_response)
+        structured_output = self._validate_model_output(parsed_output)
+
+        params = self._build_insert_params(
+            fiscal_period_label=context["fiscalPeriodLabel"],
+            call_date=context["callDate"],
+            transcript_url=context["transcriptUrl"],
+            transcript_text=transcript_text,
+            transcript_segments=transcript_segments,
+            tone_summary=tone_summary,
+            structured_output=structured_output,
+            raw_model_response=raw_model_response,
+            raw_transcript_payload=context["transcriptPayload"],
+        )
+        self.persist_analysis(params)
+        logger.info(
+            "Saved AAPL earnings AI analysis: period=%s tone=%s",
+            context["fiscalPeriodLabel"], structured_output["overallTone"],
+        )
+        return True
+
+    def collect_recent_analyses(self, max_quarters: int = 4) -> int:
+        """Fetch and persist AI analysis for the most recent *max_quarters* quarters."""
+        if not self.ensure_table():
+            logger.error("Failed to ensure earnings_ai_analysis table")
+            return 0
+
+        try:
+            earnings_payload = self.transcript_collector.api_client.get_earnings(self.SYMBOL)
+        except (ValueError, Exception) as e:
+            logger.error("Error fetching earnings data: %s", e)
+            return 0
+
+        rows = AppleEarningsCommentaryCollector._recent_earnings_rows(earnings_payload, max_quarters)
+        if not rows:
+            logger.warning("No quarterly earnings rows found for %s", self.SYMBOL)
+            return 0
+
+        saved = 0
+        for row in rows:
+            fiscal_date = AppleEarningsCommentaryCollector._parse_date(row.get("fiscalDateEnding"))
+            if fiscal_date is None:
+                continue
+
+            fiscal_period_label = AppleEarningsCommentaryCollector._derive_period_label(fiscal_date)
+            call_date = AppleEarningsCommentaryCollector._parse_date(row.get("reportedDate"))
+
+            if self.db.has_valid_earnings_ai_analysis(self.SYMBOL, fiscal_period_label):
+                logger.debug("Skipping %s %s — valid AI analysis already exists", self.SYMBOL, fiscal_period_label)
+                continue
+
+            try:
+                context = self._load_transcript_context_for_quarter(fiscal_period_label, call_date)
+                if context is None:
+                    continue
+                if self._analyze_single_quarter(context):
+                    saved += 1
+            except EarningsToneAnalysisError as e:
+                logger.error("FinBERT error for %s: %s", fiscal_period_label, e)
+            except ValueError as e:
+                logger.error("Validation error for %s: %s", fiscal_period_label, e)
+            except Exception as e:
+                logger.error("Error analyzing %s: %s", fiscal_period_label, e)
+
+        logger.info("Saved %d AI analyses for %s", saved, self.SYMBOL)
+        return saved
+
+
 def run_aapl_earnings_ai_analysis_once() -> int:
     collector = AppleEarningsAIAnalysisCollector()
-    return collector.collect_latest_analysis()
+    return collector.collect_recent_analyses()
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Collect latest AAPL earnings call transcript and store AI earnings analysis"
+        description="Collect AAPL earnings call transcripts and store AI earnings analyses"
     )
     parser.parse_args()
     rows = run_aapl_earnings_ai_analysis_once()

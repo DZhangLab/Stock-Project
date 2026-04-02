@@ -154,7 +154,12 @@
             </div>
         </div>
 
-        <h3>AI Earnings Analysis</h3>
+        <h3 style="display: flex; align-items: center; gap: 12px;">
+            AI Earnings Analysis
+            <select id="earningsQuarterSelect" style="font-size: 14px; font-weight: 400; padding: 2px 8px; border: 1px solid #ccc; border-radius: 4px;">
+                <option value="">Loading...</option>
+            </select>
+        </h3>
         <div class="panel panel-default news-ai-card" style="margin-bottom: 24px;">
             <div class="panel-body">
                 <p id="earningsAiStatus" class="text-muted" style="margin-bottom: 12px;">
@@ -543,44 +548,72 @@ function shortSummary(value) {
         renderList("earningsAiRisksList", aiData.mainRisksConcerns, "No material risks highlighted.");
         renderList("earningsAiOutlookList", aiData.outlookGuidance, "No outlook guidance highlighted.");
 
-        /* Transcript link from commentary endpoint */
+        /* Transcript link from commentary endpoint — reset first then show if available */
+        var transcriptRow = document.getElementById("earningsAiTranscriptRow");
+        if (transcriptRow) { transcriptRow.style.display = "none"; }
         if (commentaryData && commentaryData.transcriptUrl) {
             renderTranscriptLink(commentaryData.transcriptUrl);
         }
     }
 
-    var aiPromise = fetch("/api/financials/earnings-ai/latest?symbol=AAPL")
-        .then(function(response) {
-            if (!response.ok) {
-                throw new Error("no earnings ai analysis");
-            }
-            return response.json();
-        });
+    function loadQuarter(period) {
+        var aiUrl = "/api/financials/earnings-ai?symbol=AAPL&period=" + encodeURIComponent(period);
+        var commentaryUrl = "/api/financials/earnings?symbol=AAPL&period=" + encodeURIComponent(period);
 
-    var commentaryPromise = fetch("/api/financials/earnings/latest?symbol=AAPL")
-        .then(function(response) {
-            if (!response.ok) {
-                return null;
-            }
-            return response.json();
-        })
-        .catch(function() {
-            return null;
+        var aiPromise = fetch(aiUrl).then(function(r) {
+            if (!r.ok) { throw new Error("not found"); }
+            return r.json();
         });
+        var commentaryPromise = fetch(commentaryUrl).then(function(r) {
+            if (!r.ok) { return null; }
+            return r.json();
+        }).catch(function() { return null; });
 
-    Promise.all([aiPromise, commentaryPromise])
-        .then(function(results) {
-            var aiData = results[0];
-            var commentaryData = results[1];
-            if (!aiData || typeof aiData !== "object") {
+        Promise.all([aiPromise, commentaryPromise])
+            .then(function(results) {
+                var aiData = results[0];
+                var commentaryData = results[1];
+                if (!aiData || typeof aiData !== "object") {
+                    showEarningsAiFallback("AI earnings analysis is not available for " + period + ".");
+                    return;
+                }
+                showEarningsAi(aiData, commentaryData);
+            })
+            .catch(function() {
+                showEarningsAiFallback("AI earnings analysis is not available for " + period + ".");
+            });
+    }
+
+    var selectEl = document.getElementById("earningsQuarterSelect");
+
+    fetch("/api/financials/earnings-ai/periods?symbol=AAPL")
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            var periods = data.periods || [];
+            if (!periods.length) {
+                selectEl.innerHTML = '<option value="">No periods available</option>';
                 showEarningsAiFallback("AI earnings analysis is not available yet.");
                 return;
             }
-            showEarningsAi(aiData, commentaryData);
+            selectEl.innerHTML = "";
+            periods.forEach(function(p) {
+                var opt = document.createElement("option");
+                opt.value = p;
+                opt.textContent = p;
+                selectEl.appendChild(opt);
+            });
+            loadQuarter(periods[0]);
         })
         .catch(function() {
+            selectEl.innerHTML = '<option value="">Error loading periods</option>';
             showEarningsAiFallback("AI earnings analysis is not available yet. Please run the earnings AI job and try again.");
         });
+
+    selectEl.addEventListener("change", function() {
+        if (this.value) {
+            loadQuarter(this.value);
+        }
+    });
 })();
 </script>
 <script type="text/javascript">
