@@ -198,37 +198,21 @@
             </div>
         </div>
 
-        <h3>Latest Quarterly Snapshot</h3>
+        <h3>Quarterly Snapshot (Last 4 Quarters)</h3>
         <div class="panel panel-default" style="margin-bottom: 24px;">
             <div class="panel-body">
                 <p id="quarterlySnapshotStatus" class="text-muted" style="margin-bottom: 12px;">
-                    Loading latest quarterly snapshot...
+                    Loading quarterly snapshots...
                 </p>
-                <div id="quarterlySnapshotContent" style="display: none;">
-                    <div class="row" style="margin-bottom: 8px;">
-                        <div class="col-sm-4"><strong>Fiscal Period</strong></div>
-                        <div class="col-sm-8" id="snapshotFiscalPeriod">N/A</div>
-                    </div>
-                    <div class="row" style="margin-bottom: 8px;">
-                        <div class="col-sm-4"><strong>Report Date</strong></div>
-                        <div class="col-sm-8" id="snapshotReportedDate">N/A</div>
-                    </div>
-                    <div class="row" style="margin-bottom: 8px;">
-                        <div class="col-sm-4"><strong>Total Revenue</strong></div>
-                        <div class="col-sm-8" id="snapshotTotalRevenue">N/A</div>
-                    </div>
-                    <div class="row" style="margin-bottom: 8px;">
-                        <div class="col-sm-4"><strong>Reported EPS</strong></div>
-                        <div class="col-sm-8" id="snapshotReportedEps">N/A</div>
-                    </div>
-                    <div class="row" style="margin-bottom: 8px;">
-                        <div class="col-sm-4"><strong>Net Income</strong></div>
-                        <div class="col-sm-8" id="snapshotNetIncome">N/A</div>
-                    </div>
-                    <div class="row">
-                        <div class="col-sm-4"><strong>Surprise %</strong></div>
-                        <div class="col-sm-8" id="snapshotSurprisePercentage">N/A</div>
-                    </div>
+                <div id="quarterlySnapshotContent" style="display: none; overflow-x: auto;">
+                    <table id="quarterlySnapshotTable" class="table table-bordered table-condensed" style="margin-bottom: 0; font-size: 13px;">
+                        <thead>
+                            <tr id="quarterlySnapshotHeader">
+                                <th style="min-width: 120px;">Metric</th>
+                            </tr>
+                        </thead>
+                        <tbody id="quarterlySnapshotBody"></tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -605,96 +589,105 @@ function shortSummary(value) {
         return;
     }
 
-    function safeText(value) {
-        if (value === null || value === undefined || value === "") {
-            return "N/A";
-        }
-        return String(value);
-    }
-
     function formatMoney(value) {
-        if (value === null || value === undefined || value === "") {
-            return "N/A";
-        }
+        if (value === null || value === undefined || value === "") { return "N/A"; }
         var num = Number(value);
-        if (isNaN(num)) {
-            return "N/A";
+        if (isNaN(num)) { return "N/A"; }
+        if (Math.abs(num) >= 1e9) {
+            return "$" + (num / 1e9).toFixed(2) + "B";
+        }
+        if (Math.abs(num) >= 1e6) {
+            return "$" + (num / 1e6).toFixed(2) + "M";
         }
         return "$" + num.toLocaleString("en-US", { maximumFractionDigits: 2 });
     }
 
     function formatEps(value) {
-        if (value === null || value === undefined || value === "") {
-            return "N/A";
-        }
+        if (value === null || value === undefined || value === "") { return "N/A"; }
         var num = Number(value);
-        if (isNaN(num)) {
-            return "N/A";
-        }
-        return num.toFixed(2);
+        return isNaN(num) ? "N/A" : num.toFixed(2);
     }
 
     function formatPercent(value) {
-        if (value === null || value === undefined || value === "") {
-            return "N/A";
-        }
+        if (value === null || value === undefined || value === "") { return "N/A"; }
         var num = Number(value);
-        if (isNaN(num)) {
-            return "N/A";
-        }
-        return num.toFixed(2) + "%";
+        return isNaN(num) ? "N/A" : num.toFixed(2) + "%";
     }
 
-    function setSnapshotText(id, text) {
-        var el = document.getElementById(id);
-        if (el) {
-            el.textContent = text;
-        }
+    function formatYoy(value) {
+        if (value === null || value === undefined || value === "") { return ""; }
+        var num = Number(value);
+        if (isNaN(num)) { return ""; }
+        var sign = num >= 0 ? "+" : "";
+        var color = num >= 0 ? "#1f6b37" : "#8a1f1f";
+        return '<span style="font-size:11px;color:' + color + ';">' + sign + num.toFixed(2) + '% YoY</span>';
     }
 
     function showFallback(message) {
         var statusEl = document.getElementById("quarterlySnapshotStatus");
         var contentEl = document.getElementById("quarterlySnapshotContent");
-        if (statusEl) {
-            statusEl.textContent = message;
-            statusEl.className = "text-muted";
-        }
-        if (contentEl) {
-            contentEl.style.display = "none";
-        }
+        if (statusEl) { statusEl.textContent = message; statusEl.className = "text-muted"; }
+        if (contentEl) { contentEl.style.display = "none"; }
     }
 
-    function showSnapshot(data) {
+    function buildTable(quarters) {
         var statusEl = document.getElementById("quarterlySnapshotStatus");
         var contentEl = document.getElementById("quarterlySnapshotContent");
-        if (statusEl) {
-            statusEl.style.display = "none";
-        }
-        if (contentEl) {
-            contentEl.style.display = "block";
+        var headerRow = document.getElementById("quarterlySnapshotHeader");
+        var tbody = document.getElementById("quarterlySnapshotBody");
+        if (statusEl) { statusEl.style.display = "none"; }
+        if (contentEl) { contentEl.style.display = "block"; }
+
+        // Build header columns
+        for (var i = 0; i < quarters.length; i++) {
+            var th = document.createElement("th");
+            th.style.textAlign = "right";
+            th.style.minWidth = "110px";
+            th.textContent = quarters[i].fiscalPeriodLabel || "N/A";
+            headerRow.appendChild(th);
         }
 
-        setSnapshotText("snapshotFiscalPeriod", safeText(data.fiscalPeriodLabel));
-        setSnapshotText("snapshotReportedDate", safeText(data.reportedDate));
-        setSnapshotText("snapshotTotalRevenue", formatMoney(data.totalRevenue));
-        setSnapshotText("snapshotReportedEps", formatEps(data.reportedEps));
-        setSnapshotText("snapshotNetIncome", formatMoney(data.netIncome));
-        setSnapshotText("snapshotSurprisePercentage", formatPercent(data.surprisePercentage));
+        var metrics = [
+            { label: "Total Revenue",  key: "totalRevenue",  fmt: formatMoney,   yoy: "totalRevenueYoyPct" },
+            { label: "Net Income",     key: "netIncome",     fmt: formatMoney,   yoy: "netIncomeYoyPct" },
+            { label: "Reported EPS",   key: "reportedEps",   fmt: formatEps,     yoy: "reportedEpsYoyPct" },
+            { label: "Estimated EPS",  key: "estimatedEps",  fmt: formatEps,     yoy: null },
+            { label: "Surprise %",     key: "surprisePercentage", fmt: formatPercent, yoy: null }
+        ];
+
+        for (var m = 0; m < metrics.length; m++) {
+            var tr = document.createElement("tr");
+            var tdLabel = document.createElement("td");
+            tdLabel.innerHTML = "<strong>" + metrics[m].label + "</strong>";
+            tr.appendChild(tdLabel);
+
+            for (var q = 0; q < quarters.length; q++) {
+                var td = document.createElement("td");
+                td.style.textAlign = "right";
+                var mainVal = metrics[m].fmt(quarters[q][metrics[m].key]);
+                var yoyHtml = "";
+                if (metrics[m].yoy) {
+                    yoyHtml = formatYoy(quarters[q][metrics[m].yoy]);
+                    if (yoyHtml) { yoyHtml = "<br>" + yoyHtml; }
+                }
+                td.innerHTML = mainVal + yoyHtml;
+                tr.appendChild(td);
+            }
+            tbody.appendChild(tr);
+        }
     }
 
-    fetch("/api/financials/quarterly/latest?symbol=AAPL")
+    fetch("/api/financials/quarterly/recent?symbol=AAPL")
         .then(function(response) {
-            if (!response.ok) {
-                throw new Error("no quarterly snapshot");
-            }
+            if (!response.ok) { throw new Error("no recent snapshots"); }
             return response.json();
         })
         .then(function(data) {
-            if (!data || typeof data !== "object") {
+            if (!data || !data.quarters || !data.quarters.length) {
                 showFallback("Quarterly snapshot is not available yet.");
                 return;
             }
-            showSnapshot(data);
+            buildTable(data.quarters);
         })
         .catch(function() {
             showFallback("Quarterly snapshot is not available yet. Please run ingestion and try again.");

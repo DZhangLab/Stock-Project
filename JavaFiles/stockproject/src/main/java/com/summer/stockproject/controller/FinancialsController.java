@@ -74,6 +74,23 @@ public class FinancialsController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/quarterly/recent")
+    public ResponseEntity<Map<String, Object>> getRecentQuarterlySnapshots(
+            @RequestParam(defaultValue = "AAPL") String symbol
+    ) {
+        List<Map<String, Object>> quarters = quarterlyReportingSnapshotService.getRecentWithYoy(symbol, 4);
+        if (quarters.isEmpty()) {
+            Map<String, Object> notFound = new LinkedHashMap<>();
+            notFound.put("symbol", symbol == null ? "" : symbol.trim().toUpperCase());
+            notFound.put("message", "No quarterly snapshots found");
+            return ResponseEntity.status(404).body(notFound);
+        }
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("symbol", quarters.get(0).get("symbol"));
+        response.put("quarters", quarters);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/earnings/latest")
     public ResponseEntity<Map<String, Object>> getLatestEarningsCallSummary(
             @RequestParam(defaultValue = "AAPL") String symbol

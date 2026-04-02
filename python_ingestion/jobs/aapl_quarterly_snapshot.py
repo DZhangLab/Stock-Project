@@ -7,7 +7,7 @@ import logging
 import time
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..alpha_vantage import AlphaVantageClient
 from ..db import get_db_manager
@@ -73,6 +73,16 @@ class AppleQuarterlySnapshotCollector:
         return valid_rows[0] if valid_rows else None
 
     @staticmethod
+    def _top_n_rows(payload: Dict[str, Any], key: str, n: int = 8) -> List[Dict[str, Any]]:
+        """Return the *n* most recent quarterly rows sorted by fiscalDateEnding DESC."""
+        rows = payload.get(key, [])
+        if not isinstance(rows, list) or not rows:
+            return []
+        valid = [r for r in rows if isinstance(r, dict)]
+        valid.sort(key=lambda r: str(r.get("fiscalDateEnding", "")), reverse=True)
+        return valid[:n]
+
+    @staticmethod
     def _earnings_index(payload: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         result: Dict[str, Dict[str, Any]] = {}
         rows = payload.get("quarterlyEarnings", [])
@@ -113,6 +123,24 @@ class AppleQuarterlySnapshotCollector:
                 logger.warning("EARNINGS quarterlyEarnings is empty")
 
         return income_row, earnings_row
+
+    def _select_multiple_rows(
+        self,
+        income_payload: Dict[str, Any],
+        earnings_payload: Dict[str, Any],
+        n: int = 8,
+    ) -> List[Tuple[Dict[str, Any], Optional[Dict[str, Any]]]]:
+        """Select up to *n* recent quarters, pairing each income row with its earnings row."""
+        income_rows = self._top_n_rows(income_payload, "quarterlyReports", n)
+        if not income_rows:
+            logger.warning("INCOME_STATEMENT quarterlyReports is empty")
+            return []
+        earnings_by_fiscal = self._earnings_index(earnings_payload)
+        pairs: List[Tuple[Dict[str, Any], Optional[Dict[str, Any]]]] = []
+        for inc in income_rows:
+            fiscal = str(inc.get("fiscalDateEnding", "")).strip()
+            pairs.append((inc, earnings_by_fiscal.get(fiscal)))
+        return pairs
 
     def _build_params(
         self,
@@ -220,13 +248,46 @@ class AppleQuarterlySnapshotCollector:
             return 0
 
 
+    def collect_recent_snapshots(self, n: int = 8) -> int:
+        """Fetch and persist the most recent *n* quarters (default 8 for YoY coverage)."""
+        if not self.ensure_table():
+            logger.error("Failed to ensure quarterly_reporting_snapshot table")
+            return 0
+
+        try:
+            income_payload = self.api_client.get_income_statement(self.SYMBOL)
+            time.sleep(self.REQUEST_DELAY_SECONDS)
+            earnings_payload = self.api_client.get_earnings(self.SYMBOL)
+        except ValueError as e:
+            logger.error("%s", e)
+            return 0
+        except Exception as e:
+            logger.error("Error fetching quarterly snapshot data: %s", e)
+            return 0
+
+        pairs = self._select_multiple_rows(income_payload, earnings_payload, n)
+        saved = 0
+        for income_row, earnings_row in pairs:
+            params = self._build_params(income_row, earnings_row)
+            if params is None:
+                continue
+            try:
+                self.persist_snapshot(params)
+                saved += 1
+            except Exception as e:
+                logger.error("Error persisting snapshot for fiscal_date=%s: %s", params[1], e)
+
+        logger.info("Saved %d quarterly snapshots for %s", saved, self.SYMBOL)
+        return saved
+
+
 def run_aapl_quarterly_snapshot_once() -> int:
     collector = AppleQuarterlySnapshotCollector()
-    return collector.collect_latest_snapshot()
+    return collector.collect_recent_snapshots()
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Collect and store latest AAPL quarterly reporting snapshot")
+    parser = argparse.ArgumentParser(description="Collect and store AAPL quarterly reporting snapshots")
     parser.parse_args()
 
     rows = run_aapl_quarterly_snapshot_once()
