@@ -54,7 +54,11 @@ $(document).ready(function () {
   var rawData = [];
 
   for (var i = 0; i < timepoint.length; i++) {
-    var displaySec = toDisplaySeconds(timepoint[i]);
+    // Daily data: timestamps are already midnight UTC — use directly.
+    // Intraday: convert JVM-local millis to fake-UTC display seconds.
+    var displaySec = isDaily
+        ? Math.floor(timepoint[i] / 1000)
+        : toDisplaySeconds(timepoint[i]);
     var c = Number(apple[i][3]); // close price
     rawData.push({ time: displaySec, value: c });
   }
@@ -91,7 +95,8 @@ $(document).ready(function () {
   // 2. Calculate 7-period Simple Moving Average
   // =====================================================
 
-  var SMA_PERIOD = 7;
+  var isDaily = (typeof dataGranularity !== "undefined" && dataGranularity === "daily");
+  var SMA_PERIOD = isDaily ? 20 : 7;
 
   function calculateSMA(closes, period) {
     var result = [];
@@ -133,10 +138,13 @@ $(document).ready(function () {
     },
     timeScale: {
       borderColor: "#d1d4dc",
-      timeVisible: true,
+      timeVisible: !isDaily,
       secondsVisible: false,
       tickMarkFormatter: function (time) {
         var d = new Date(time * 1000);
+        if (isDaily) {
+          return (d.getUTCMonth() + 1) + "/" + d.getUTCDate();
+        }
         var h = d.getUTCHours();
         var m = d.getUTCMinutes();
         return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
@@ -147,6 +155,9 @@ $(document).ready(function () {
       dateFormat: "yyyy-MM-dd",
       timeFormatter: function (time) {
         var d = new Date(time * 1000);
+        if (isDaily) {
+          return (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + "/" + d.getUTCFullYear();
+        }
         var h = d.getUTCHours();
         var m = d.getUTCMinutes();
         return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
@@ -201,6 +212,9 @@ $(document).ready(function () {
 
   function formatTime(epochSec) {
     var d = new Date(epochSec * 1000);
+    if (isDaily) {
+      return (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + "/" + d.getUTCFullYear();
+    }
     var h = d.getUTCHours();
     var m = d.getUTCMinutes();
     return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
@@ -261,7 +275,9 @@ $(document).ready(function () {
   var rangeFrom = (typeof selectedStart !== "undefined") ? parseETDisplayString(selectedStart) : null;
   var rangeTo   = (typeof selectedEnd   !== "undefined") ? parseETDisplayString(selectedEnd)   : null;
 
-  if (rangeFrom && rangeTo && rangeFrom < rangeTo) {
+  if (isDaily) {
+    chart.timeScale().fitContent();
+  } else if (rangeFrom && rangeTo && rangeFrom < rangeTo) {
     chart.timeScale().setVisibleRange({ from: rangeFrom, to: rangeTo });
   } else {
     chart.timeScale().fitContent();
@@ -278,6 +294,7 @@ $(document).ready(function () {
   // =====================================================
 
   (function renderFutureHint() {
+    if (isDaily) return;
     if (lineData.length < 1 || !rangeTo) return;
     var lastDataTime = lineData[lineData.length - 1].time;
     // Only show the hint when there is a meaningful gap (> 2 min)

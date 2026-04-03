@@ -142,6 +142,40 @@
             background: #fde8e8;
             color: #8a1f1f;
         }
+
+        /* Time range selector buttons */
+        .range-btn-bar {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+        .range-btn {
+            padding: 5px 14px;
+            border: 1px solid #d1d4dc;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+            text-decoration: none;
+            background: #fff;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .range-btn:hover {
+            background: #f0f1f3;
+            text-decoration: none;
+            color: #333;
+        }
+        .range-btn.active {
+            background: #2962FF;
+            color: #fff;
+            border-color: #2962FF;
+        }
+        .range-btn.active:hover {
+            background: #1b4bc9;
+            color: #fff;
+            text-decoration: none;
+        }
     </style>
 
 </head>
@@ -165,9 +199,18 @@
         <a th:href="@{/stock/list}" class="btn btn-primary">Select Different Date</a>
     </div>
     
+    <!-- Time range selector (always visible) -->
+    <div class="range-btn-bar" style="margin-top: 16px;">
+        <a th:each="r : ${ {'1D','1W','1M','3M','6M','YTD','1Y'} }"
+           th:href="@{/stock/{sym}(sym=${symbol}, range=${r})}"
+           th:text="${r}"
+           th:classappend="${r == activeRange} ? 'active' : ''"
+           class="range-btn"></a>
+    </div>
+
     <!-- Display chart when data exists -->
-    <div th:if="${hasData}" style="margin-top: 20px;">
-        <!-- Intraday summary bar (populated by getdata.js) -->
+    <div th:if="${hasData}" style="margin-top: 10px;">
+        <!-- Summary bar (populated by getdata.js) -->
         <div id="intradaySummary" class="intraday-summary" style="display:none;"></div>
         <div th:if="${dataCount < 10}" class="alert alert-info" style="margin-bottom: 20px;">
             <strong>ℹ️ Limited Data:</strong> This date range has very few data points (<span th:text="${dataCount}"></span>).
@@ -342,6 +385,7 @@ var hasData = /*[[${hasData}]]*/ false;
 var symbol = /*[[${symbol}]]*/ "";
 var selectedStart = /*[[${startDate}]]*/ "";
 var selectedEnd = /*[[${endDate}]]*/ "";
+var dataGranularity = /*[[${dataGranularity}]]*/ "minute";
 
 // Skip chart rendering if no data
 if (!hasData || !apple || apple.length === 0) {

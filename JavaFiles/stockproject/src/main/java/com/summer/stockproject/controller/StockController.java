@@ -1,8 +1,11 @@
 package com.summer.stockproject.controller;
 
+import com.summer.stockproject.entity.DailyQuote;
 import com.summer.stockproject.entity.IntradayBar;
+import com.summer.stockproject.helperfunction.DailyChartData;
 import com.summer.stockproject.helperfunction.StockChartData;
 import com.summer.stockproject.service.CompanyNewsService;
+import com.summer.stockproject.service.DailyQuoteService;
 import com.summer.stockproject.service.IntradayBarService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -18,19 +21,29 @@ import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Controller
 @RequestMapping("/stock")
 public class StockController {
     
     private final IntradayBarService intradayBarService;
+    private final DailyQuoteService dailyQuoteService;
     private final CompanyNewsService companyNewsService;
-    
+
+    private static final Set<String> DAILY_RANGES = new HashSet<>(
+            Arrays.asList("1W", "1M", "3M", "6M", "YTD", "1Y"));
+
     @Autowired
-    public StockController(IntradayBarService intradayBarService, CompanyNewsService companyNewsService) {
+    public StockController(IntradayBarService intradayBarService,
+                           DailyQuoteService dailyQuoteService,
+                           CompanyNewsService companyNewsService) {
         this.intradayBarService = intradayBarService;
+        this.dailyQuoteService = dailyQuoteService;
         this.companyNewsService = companyNewsService;
     }
     
@@ -43,12 +56,13 @@ public class StockController {
             @PathVariable String symbol,
             @RequestParam(required = false) String start,
             @RequestParam(required = false) String end,
+            @RequestParam(required = false) String range,
             Model model) throws ParseException {
-        
-        // Normalize stock symbol (handle special characters, e.g., BRK.B -> BRKB)
-        String normalizedSymbol = symbol.toUpperCase().replace(".", "").replace("/", "");
-        
-        // Handle MySQL reserved words (same as Python normalize_table_name)
+
+        String displaySymbol = symbol.toUpperCase();
+
+        // Normalize for intraday table names (BRK.B -> BRKB, handle reserved words)
+        String normalizedSymbol = displaySymbol.replace(".", "").replace("/", "");
         if (normalizedSymbol.equals("NOW")) {
             normalizedSymbol = "NOW1";
         } else if (normalizedSymbol.equals("ALL")) {
@@ -58,43 +72,130 @@ public class StockController {
         } else if (normalizedSymbol.equals("KEY")) {
             normalizedSymbol = "KEY1";
         }
-        
-        DefaultRange defaultRange = getDefaultRangeForSymbol(normalizedSymbol);
-        
-        // Default date: if not specified, use the most recent day's data (or today if no data)
-        String startDateStr = start != null ? start.replace("T", " ").replace("/", "-") : defaultRange.startDisplay;
-        String endDateStr = end != null ? end.replace("T", " ").replace("/", "-") : defaultRange.endDisplay;
-        
-        // Parse date - supports multiple formats
-        Date startDate = parseDate(startDateStr, true, defaultRange);  // true means start date
-        Date endDate = parseDate(endDateStr, false, defaultRange);     // false means end date
-        Timestamp sqlStart = new Timestamp(startDate.getTime());
-        Timestamp sqlEnd = new Timestamp(endDate.getTime());
-        
-        // Format date string for display
-        SimpleDateFormat displayFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        startDateStr = displayFormat.format(startDate);
-        endDateStr = displayFormat.format(endDate);
-        
-        // Use universalfind method to query any stock table (with date range)
-        List<IntradayBar> filteredData = intradayBarService.universalfind(normalizedSymbol, sqlStart, sqlEnd);
-        
-        // Prepare chart data
-        StockChartData listData = new StockChartData(filteredData);
-        
-        model.addAttribute("apple", listData.getPrice());
-        model.addAttribute("timepoint", listData.getDateInSecond());
-        model.addAttribute("symbol", symbol.toUpperCase());
+
+        // Explicit start/end takes precedence over range
+        boolean hasCustomRange = (start != null && !start.trim().isEmpty())
+                || (end != null && !end.trim().isEmpty());
+
+        // Determine if we should use the daily data path
+        boolean useDaily = !hasCustomRange && range != null && DAILY_RANGES.contains(range.toUpperCase());
+        String activeRange = hasCustomRange ? "" : (range != null ? range.toUpperCase() : "1D");
+
+        if (useDaily) {
+            return handleDailyRange(displaySymbol, normalizedSymbol, activeRange, model);
+        } else {
+            return handleIntradayRange(displaySymbol, normalizedSymbol, activeRange, start, end, model);
+        }
+    }
+
+    /**
+     * Handle 1W/1M/3M/6M/YTD/1Y ranges using daily data from everydayAfterClose.
+     */
+    private String handleDailyRange(String displaySymbol, String normalizedSymbol,
+                                     String range, Model model) {
+        // Use API-format symbol for daily table (e.g., "BRK.B" not "BRKB")
+        String apiSymbol = displaySymbol;
+
+        // Find the latest available trading date for this symbol
+        String latestDate = dailyQuoteService.getLatestDateForSymbol(apiSymbol);
+        if (latestDate == null) {
+            // No daily data — show empty state
+            setEmptyModel(model, displaySymbol, range, "daily");
+            return "graphpages/graph-page";
+        }
+
+        LocalDate latest = LocalDate.parse(latestDate);
+        LocalDate startDate = computeRangeStart(range, latest);
+        String startDateStr = startDate.toString();
+
+        List<DailyQuote> dailyData = dailyQuoteService.findBySymbolAndDateRange(
+                apiSymbol, startDateStr, latestDate);
+
+        DailyChartData chartData = new DailyChartData(dailyData);
+
+        model.addAttribute("apple", chartData.getPrice());
+        model.addAttribute("timepoint", chartData.getDateInSecond());
+        model.addAttribute("symbol", displaySymbol);
         model.addAttribute("startDate", startDateStr);
-        model.addAttribute("endDate", endDateStr);
-        model.addAttribute("dataCount", filteredData.size());
-        model.addAttribute("hasData", !filteredData.isEmpty());
+        model.addAttribute("endDate", latestDate);
+        model.addAttribute("dataCount", dailyData.size());
+        model.addAttribute("hasData", !dailyData.isEmpty());
+        model.addAttribute("dataGranularity", "daily");
+        model.addAttribute("activeRange", range);
         model.addAttribute("showAppleNews", normalizedSymbol.equals("AAPL"));
         if (normalizedSymbol.equals("AAPL")) {
             model.addAttribute("appleNews", companyNewsService.getRecentAppleNews());
         }
-        
+
         return "graphpages/graph-page";
+    }
+
+    /**
+     * Handle 1D / custom start-end using intraday minute data.
+     */
+    private String handleIntradayRange(String displaySymbol, String normalizedSymbol,
+                                        String activeRange, String start, String end,
+                                        Model model) throws ParseException {
+        DefaultRange defaultRange = getDefaultRangeForSymbol(normalizedSymbol);
+
+        String startDateStr = start != null ? start.replace("T", " ").replace("/", "-") : defaultRange.startDisplay;
+        String endDateStr = end != null ? end.replace("T", " ").replace("/", "-") : defaultRange.endDisplay;
+
+        Date startDate = parseDate(startDateStr, true, defaultRange);
+        Date endDate = parseDate(endDateStr, false, defaultRange);
+        Timestamp sqlStart = new Timestamp(startDate.getTime());
+        Timestamp sqlEnd = new Timestamp(endDate.getTime());
+
+        SimpleDateFormat displayFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        startDateStr = displayFormat.format(startDate);
+        endDateStr = displayFormat.format(endDate);
+
+        List<IntradayBar> filteredData = intradayBarService.universalfind(normalizedSymbol, sqlStart, sqlEnd);
+        StockChartData listData = new StockChartData(filteredData);
+
+        model.addAttribute("apple", listData.getPrice());
+        model.addAttribute("timepoint", listData.getDateInSecond());
+        model.addAttribute("symbol", displaySymbol);
+        model.addAttribute("startDate", startDateStr);
+        model.addAttribute("endDate", endDateStr);
+        model.addAttribute("dataCount", filteredData.size());
+        model.addAttribute("hasData", !filteredData.isEmpty());
+        model.addAttribute("dataGranularity", "minute");
+        model.addAttribute("activeRange", activeRange);
+        model.addAttribute("showAppleNews", normalizedSymbol.equals("AAPL"));
+        if (normalizedSymbol.equals("AAPL")) {
+            model.addAttribute("appleNews", companyNewsService.getRecentAppleNews());
+        }
+
+        return "graphpages/graph-page";
+    }
+
+    private void setEmptyModel(Model model, String symbol, String range, String granularity) {
+        model.addAttribute("apple", List.of());
+        model.addAttribute("timepoint", List.of());
+        model.addAttribute("symbol", symbol);
+        model.addAttribute("startDate", "N/A");
+        model.addAttribute("endDate", "N/A");
+        model.addAttribute("dataCount", 0);
+        model.addAttribute("hasData", false);
+        model.addAttribute("dataGranularity", granularity);
+        model.addAttribute("activeRange", range);
+        model.addAttribute("showAppleNews", false);
+    }
+
+    /**
+     * Compute start date for a given range relative to the latest available date.
+     */
+    private LocalDate computeRangeStart(String range, LocalDate latest) {
+        switch (range) {
+            case "1W":  return latest.minusWeeks(1);
+            case "1M":  return latest.minusMonths(1);
+            case "3M":  return latest.minusMonths(3);
+            case "6M":  return latest.minusMonths(6);
+            case "YTD": return LocalDate.of(latest.getYear(), 1, 1);
+            case "1Y":  return latest.minusYears(1);
+            default:    return latest.minusWeeks(1);
+        }
     }
     
     /**
