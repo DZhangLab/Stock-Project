@@ -20,15 +20,15 @@
         </div>
         
         <div class="form-group">
-            <label>Start Date and Time:</label>
+            <label>Start Date and Time (ET):</label>
             <input type="datetime-local" name="start" class="form-control" th:value="${defaultStartLocal}" step="60">
-            <small class="form-text text-muted">Format: YYYY-MM-DD HH:MM (e.g., 2025-03-17 09:30)</small>
+            <small class="form-text text-muted">Eastern Time. Format: YYYY-MM-DD HH:MM (e.g., 2025-03-17 09:30)</small>
         </div>
-        
+
         <div class="form-group">
-            <label>End Date and Time:</label>
+            <label>End Date and Time (ET):</label>
             <input type="datetime-local" name="end" class="form-control" th:value="${defaultEndLocal}" step="60">
-            <small class="form-text text-muted">Format: YYYY-MM-DD HH:MM (e.g., 2025-03-17 16:00)</small>
+            <small class="form-text text-muted">Eastern Time. Format: YYYY-MM-DD HH:MM (e.g., 2025-03-17 16:00)</small>
         </div>
         
         <button type="submit" class="btn btn-primary">View Chart</button>

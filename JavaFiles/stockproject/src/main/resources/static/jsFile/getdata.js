@@ -1,188 +1,323 @@
-$(document).ready(function() {
+$(document).ready(function () {
 
-
-//var calendarpicker = Metro.getPlugin(element, 'calendarpicker');
-//
-//console.log(calendarpicker.getSelected());
-//console.log("test");
-var transaction_x = apple.map(x => x["timePoint"]);
-var transaction_y = apple.map(x => x["minuteOpen"]);
-// console.log(apple[1]);
-//console.log(timepoint);
-//console.log(apple[1]["minuteOpen"]);
-
-
-
-// create the object to passinto chart js package.
-
-
-
-
-
-
-
-
-function myFunction(sel, day, el){
-        console.log(sel)
-                console.log("test")
-
-        console.log(day)
-        console.log("test")
-        console.log(el)
-    }
-function showAlert() {
-    alert("The button was clicked!");
-}
-//console.log("testststststts");
-//
-//const labels = transaction_x;
-//  const data = {
-//    labels: labels,
-//    datasets: [{
-//      label: 'my first dataset',
-//      backgroundColor: 'rgb(255, 99, 132)',
-//      borderColor: 'rgb(265,99, 132)',
-//      data: transaction_y,
-//      fill: false
-//    }]
-//  };
-//
-//  const config = {
-//    type: 'line',
-//    data: data,
-//    options: {}
-//  };
-//const myChart = new Chart(
-//      document.getElementById('myChart'),
-//      config
-//    );
-
-
-
-
-var dataPoints = [];
-var dataPoints2 = [];
-for (var i = 0; i < timepoint.length; i++) {
-        //console.log(i);
-        ///console.log(apple[i][1]);
-		dataPoints.push({
-			x: new Date(timepoint[i]),
-			y: [Number(apple[i][0]), Number(apple[i][1]), Number(apple[i][2]), Number(apple[i][3])]
-
-		});
-		dataPoints2.push({x: new Date(timepoint[i]), y: Number(apple[i][3])});
-	}
-
-  console.log(dataPoints);
-
-//function parseData(result) {
-//	for (var i = 0; i < result.length; i++) {
-//		dataPoints.push({
-//			x: result[i].x,
-//			y: result[i].y
-//		});
-//	}
-//	chart.render();
-//}
-
-//console.log(dataPoints);
-
-  // Check if data exists
-  if (!apple || apple.length === 0) {
+  // --- Guard: skip if no data injected by Thymeleaf ---
+  if (typeof apple === "undefined" || !apple || apple.length === 0) {
     console.log("No data, skipping chart rendering");
     return;
   }
+  if (typeof timepoint === "undefined" || !timepoint || timepoint.length === 0) {
+    return;
+  }
 
-  var dps1 = [], dps2= [];
-  
-  // Calculate date range from data
-  var minDate = dataPoints.length > 0 ? dataPoints[0].x : new Date();
-  var maxDate = dataPoints.length > 0 ? dataPoints[dataPoints.length - 1].x : new Date();
-  
-  var stockChart = new CanvasJS.StockChart("chartContainer",{
-    title:{
-      text:"Stock chart for " + (symbol || "apple")
-    },
-    subtitles: [{
-      text:"Simple Moving Average"
-    }],
-    rangeSelector: {
-      enabled: true,
-      inputFields: {
-        enabled: true,
-        from: minDate,
-        to: maxDate
-      },
-      // Intraday page: keep From/To inputs only, remove range buttons.
-      buttons: []
-    },
-    charts: [{
-      axisY: {
-        prefix: "$"
-      },
-      legend: {
-        verticalAlign: "top",
-        cursor: "pointer",
-        itemclick: function (e) {
-          if (typeof (e.dataSeries.visible) === "undefined" || e.dataSeries.visible) {
-            e.dataSeries.visible = false;
-          } else {
-            e.dataSeries.visible = true;
-          }
-          e.chart.render();
-        }
-      },
-      toolTip: {
-        shared: true
-      },
-      data: [{
-        type: "candlestick",
-        showInLegend: true,
-        name: "Stock Price",
-        yValueFormatString: "$#,###.00",
-        xValueType: "dateTime",
-        xValueFormatString: "YYYY-MMM-DD HH:mm ",
-        dataPoints : dataPoints
-      }],
-    }]
-  });
+  var container = document.getElementById("chartContainer");
+  if (!container) {
+    return;
+  }
 
-//  $.getJSON("https://canvasjs.com/data/docs/ethusd2018.json", function(data) {
-//    for(var i = 0; i < data.length; i++){
-//      dps1.push({x: new Date(data[i].date), y: [Number(data[i].open), Number(data[i].high), Number(data[i].low), Number(data[i].close)]});
-//      dps2.push({x: new Date(data[i].date), y: Number(data[i].close)});
-//    }
-//
-  stockChart.render();
+  // =====================================================
+  // Timezone / display-coordinate helper
+  //
+  // Lightweight Charts renders timestamps as UTC.
+  // The backend stores ET wall-clock times in the DB and
+  // sends epoch millis produced by java.sql.Timestamp
+  // .getTime(), which interprets the DB value in the
+  // JVM's system timezone.  Since the browser runs on
+  // the same machine, its local timezone matches the JVM.
+  //
+  // To recover the original DB wall-clock value (ET) we
+  // extract the browser-local hours/minutes/seconds and
+  // pack them into a fake-UTC epoch.  This makes the
+  // x-axis read the same values shown in the page header
+  // (which are also formatted in JVM-local time by
+  // SimpleDateFormat).
+  // =====================================================
 
-var sma = calculateSMA(dataPoints, 7);
-stockChart.charts[0].addTo("data", { type: "line", dataPoints: sma, showInLegend: true, yValueFormatString: "$#,###.00", name: "Simple Moving Average"})
-//  });
-  function calculateSMA(dps, count){
-    var avg = function(dps){
-      var sum = 0, count = 0, val;
-      for (var i = 0; i < dps.length; i++) {
-        val = dps[i].y[3]; sum += val; count++;
+  function toDisplaySeconds(epochMs) {
+    var d = new Date(epochMs);
+    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(),
+                    d.getHours(), d.getMinutes(), d.getSeconds()) / 1000;
+  }
+
+  // =====================================================
+  // 1. Transform backend data into Lightweight Charts format
+  //
+  //    Backend provides (via Thymeleaf):
+  //      apple[i]     = [open, high, low, close]
+  //      timepoint[i] = epoch millis (JVM-local interpretation of DB timestamps)
+  //
+  //    The backend stores OHLC columns per minute bar, but
+  //    in practice the source data provides a single price
+  //    per timestamp (open == high == low == close).
+  //    We use a line series keyed on the close price.
+  // =====================================================
+
+  var rawData = [];
+
+  for (var i = 0; i < timepoint.length; i++) {
+    var displaySec = toDisplaySeconds(timepoint[i]);
+    var c = Number(apple[i][3]); // close price
+    rawData.push({ time: displaySec, value: c });
+  }
+
+  // --- Deduplicate by timestamp (keep last value per second) ---
+  var seen = {};
+  var lineData = [];
+  for (var i = 0; i < rawData.length; i++) {
+    var key = rawData[i].time;
+    if (seen[key] !== undefined) {
+      lineData[seen[key]] = rawData[i];
+    } else {
+      seen[key] = lineData.length;
+      lineData.push(rawData[i]);
+    }
+  }
+
+  // --- Sort ascending by time (Lightweight Charts requirement) ---
+  lineData.sort(function (a, b) { return a.time - b.time; });
+
+  // --- Diagnostic logging ---
+  console.log("Chart data: " + rawData.length + " raw, " +
+              lineData.length + " after dedup");
+  console.log("First 5:", lineData.slice(0, 5));
+  console.log("Last 5:",  lineData.slice(-5));
+
+  // --- Collect close values for SMA ---
+  var closeValues = [];
+  for (var i = 0; i < lineData.length; i++) {
+    closeValues.push(lineData[i].value);
+  }
+
+  // =====================================================
+  // 2. Calculate 7-period Simple Moving Average
+  // =====================================================
+
+  var SMA_PERIOD = 7;
+
+  function calculateSMA(closes, period) {
+    var result = [];
+    for (var i = 0; i < closes.length; i++) {
+      if (i < period - 1) continue;
+      var sum = 0;
+      for (var j = i - period + 1; j <= i; j++) {
+        sum += closes[j];
       }
-      return sum / count;
-    };
-    var result = [], val;
-    count = count || 5;
-    for (var i=0; i < count; i++)
-      result.push({ x: dps[i].x , y: null});
-    for (var i=count - 1, len=dps.length; i < len; i++){
-      val = avg(dps.slice(i - count + 1, i));
-      if (isNaN(val))
-        result.push({ x: dps[i].x, y: null});
-      else
-        result.push({ x: dps[i].x, y: val});
+      result.push({ time: lineData[i].time, value: sum / period });
     }
     return result;
   }
-  console.log(dps1);
-setTimeout(function() {
-  //your code to be executed after 1 second
-}, 100000);
 
+  var smaData = calculateSMA(closeValues, SMA_PERIOD);
+  console.log("SMA data points: " + smaData.length);
 
-})
+  // =====================================================
+  // 3. Create chart (English locale, ET display)
+  // =====================================================
+
+  var chart = LightweightCharts.createChart(container, {
+    width:  container.clientWidth,
+    height: container.clientHeight,
+    layout: {
+      background: { type: "solid", color: "#ffffff" },
+      textColor: "#333333",
+      fontSize: 12
+    },
+    grid: {
+      vertLines: { color: "#f0f0f0" },
+      horzLines: { color: "#f0f0f0" }
+    },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal
+    },
+    rightPriceScale: {
+      borderColor: "#d1d4dc"
+    },
+    timeScale: {
+      borderColor: "#d1d4dc",
+      timeVisible: true,
+      secondsVisible: false,
+      tickMarkFormatter: function (time) {
+        var d = new Date(time * 1000);
+        var h = d.getUTCHours();
+        var m = d.getUTCMinutes();
+        return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+      }
+    },
+    localization: {
+      locale: "en-US",
+      dateFormat: "yyyy-MM-dd",
+      timeFormatter: function (time) {
+        var d = new Date(time * 1000);
+        var h = d.getUTCHours();
+        var m = d.getUTCMinutes();
+        return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+      }
+    }
+  });
+
+  // --- Primary price line ---
+  var lineSeries = chart.addLineSeries({
+    color: "#2962FF",
+    lineWidth: 2,
+    crosshairMarkerVisible: true,
+    crosshairMarkerRadius: 4,
+    priceLineVisible: true,
+    lastValueVisible: true
+  });
+  lineSeries.setData(lineData);
+
+  // --- SMA overlay ---
+  var smaSeries = chart.addLineSeries({
+    color: "#E91E63",
+    lineWidth: 1,
+    lineStyle: 0,
+    priceLineVisible: false,
+    lastValueVisible: false,
+    crosshairMarkerVisible: true
+  });
+  smaSeries.setData(smaData);
+
+  // =====================================================
+  // 4. Legend (top-left, updates on crosshair move)
+  // =====================================================
+
+  var legend = document.createElement("div");
+  legend.style.cssText =
+    "position:absolute;top:8px;left:12px;z-index:10;" +
+    "font:12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;" +
+    "color:#333;pointer-events:none;";
+  container.appendChild(legend);
+
+  function defaultLegend() {
+    return '<span style="font-weight:700;font-size:13px;">' +
+      (symbol || "Stock") + '</span>' +
+      '<span style="color:#999;font-size:11px;margin-left:6px;">' +
+      'Price & SMA(' + SMA_PERIOD + ') \u00b7 ET</span>';
+  }
+
+  function formatPrice(v) {
+    return v == null ? "\u2014" : "$" + v.toFixed(2);
+  }
+
+  function formatTime(epochSec) {
+    var d = new Date(epochSec * 1000);
+    var h = d.getUTCHours();
+    var m = d.getUTCMinutes();
+    return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+  }
+
+  legend.innerHTML = defaultLegend();
+
+  chart.subscribeCrosshairMove(function (param) {
+    if (!param || !param.time) {
+      legend.innerHTML = defaultLegend();
+      return;
+    }
+
+    var price = param.seriesData.get(lineSeries);
+    var sma   = param.seriesData.get(smaSeries);
+
+    var parts = '<span style="font-weight:700;font-size:13px;">' +
+      (symbol || "Stock") + "</span> ";
+    parts += '<span style="color:#666;font-size:11px;">' +
+      formatTime(param.time) + ' ET</span> ';
+    if (price && price.value != null) {
+      parts += ' <span style="color:#2962FF;font-weight:600;">' +
+        formatPrice(price.value) + "</span>";
+    }
+    if (sma && sma.value != null) {
+      parts += ' <span style="color:#E91E63;">SMA ' +
+        formatPrice(sma.value) + "</span>";
+    }
+    legend.innerHTML = parts;
+  });
+
+  // =====================================================
+  // 5. Set visible range to the user-selected window
+  //
+  // The selectedStart / selectedEnd strings are ET
+  // wall-clock times ("yyyy-MM-dd HH:mm:ss").  We parse
+  // them as UTC so the resulting epoch matches the chart
+  // coordinate system (where UTC display == ET wall-clock).
+  // If the user picked a wider range than the data covers,
+  // the chart will honestly show the empty region instead
+  // of silently shrinking.
+  // =====================================================
+
+  function parseETDisplayString(str) {
+    if (!str) return null;
+    var p = str.split(/[- :]/);
+    if (p.length < 5) return null;
+    return Date.UTC(
+      parseInt(p[0], 10),
+      parseInt(p[1], 10) - 1,
+      parseInt(p[2], 10),
+      parseInt(p[3], 10),
+      parseInt(p[4], 10),
+      p[5] ? parseInt(p[5], 10) : 0
+    ) / 1000;
+  }
+
+  var rangeFrom = (typeof selectedStart !== "undefined") ? parseETDisplayString(selectedStart) : null;
+  var rangeTo   = (typeof selectedEnd   !== "undefined") ? parseETDisplayString(selectedEnd)   : null;
+
+  if (rangeFrom && rangeTo && rangeFrom < rangeTo) {
+    chart.timeScale().setVisibleRange({ from: rangeFrom, to: rangeTo });
+  } else {
+    chart.timeScale().fitContent();
+  }
+
+  // =====================================================
+  // 6. Intraday summary bar
+  //
+  //    Computed from lineData (the deduplicated, sorted
+  //    price series already used by the chart).
+  //    Open  = first price in range
+  //    Last  = last price in range
+  //    High  = max price in range
+  //    Low   = min price in range
+  //    Change   = Last - Open
+  //    Change % = (Last - Open) / Open * 100
+  // =====================================================
+
+  (function renderSummary() {
+    var el = document.getElementById("intradaySummary");
+    if (!el || lineData.length < 1) return;
+
+    var openPrice  = lineData[0].value;
+    var lastPrice  = lineData[lineData.length - 1].value;
+    var highPrice  = openPrice;
+    var lowPrice   = openPrice;
+    for (var i = 1; i < lineData.length; i++) {
+      var v = lineData[i].value;
+      if (v > highPrice) highPrice = v;
+      if (v < lowPrice)  lowPrice  = v;
+    }
+
+    var change    = lastPrice - openPrice;
+    var changePct = openPrice !== 0 ? (change / openPrice) * 100 : 0;
+
+    var sign      = change > 0 ? "+" : change < 0 ? "-" : "";
+    var colorCls  = change > 0 ? "sum-pos" : change < 0 ? "sum-neg" : "sum-neutral";
+
+    function fmt(v) { return "$" + v.toFixed(2); }
+
+    function item(label, value, cls) {
+      return '<span><span class="sum-label">' + label + '</span>' +
+             '<span class="sum-value' + (cls ? " " + cls : "") + '">' + value + '</span></span>';
+    }
+
+    el.innerHTML =
+      item("Open", fmt(openPrice)) +
+      item("High", fmt(highPrice)) +
+      item("Low",  fmt(lowPrice)) +
+      item("Last", fmt(lastPrice)) +
+      item("Change", sign + fmt(Math.abs(change)), colorCls) +
+      item("Change %", sign + Math.abs(changePct).toFixed(2) + "%", colorCls);
+
+    el.style.display = "flex";
+  })();
+
+  window.addEventListener("resize", function () {
+    chart.applyOptions({ width: container.clientWidth });
+  });
+});
