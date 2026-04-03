@@ -1,6 +1,7 @@
 package com.summer.stockproject.entity;
 
 import javax.persistence.*;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 
 @Entity
@@ -32,6 +33,12 @@ public class CompanyNews {
 
     @Column(name = "published_at")
     private Timestamp publishedAt;
+
+    @Column(name = "av_overall_sentiment_score")
+    private BigDecimal sentimentScore;
+
+    @Column(name = "av_overall_sentiment_label")
+    private String sentimentLabel;
 
     @Column(name = "ingestion_time")
     private Timestamp ingestionTime;
@@ -101,6 +108,40 @@ public class CompanyNews {
 
     public void setPublishedAt(Timestamp publishedAt) {
         this.publishedAt = publishedAt;
+    }
+
+    public BigDecimal getSentimentScore() {
+        return sentimentScore;
+    }
+
+    public void setSentimentScore(BigDecimal sentimentScore) {
+        this.sentimentScore = sentimentScore;
+    }
+
+    public String getSentimentLabel() {
+        return sentimentLabel;
+    }
+
+    public void setSentimentLabel(String sentimentLabel) {
+        this.sentimentLabel = sentimentLabel;
+    }
+
+    /**
+     * Map the upstream 5-level label (Bullish, Somewhat-Bullish, Neutral,
+     * Somewhat-Bearish, Bearish) to a simple 3-state for display badges.
+     * Returns null when no sentiment data is available.
+     */
+    public String getSentimentTone() {
+        if (sentimentLabel == null || sentimentLabel.isEmpty()) {
+            return null;
+        }
+        String lower = sentimentLabel.toLowerCase();
+        if (lower.contains("bullish")) {
+            return "Positive";
+        } else if (lower.contains("bearish")) {
+            return "Negative";
+        }
+        return "Neutral";
     }
 
     public Timestamp getIngestionTime() {

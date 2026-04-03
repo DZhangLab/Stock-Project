@@ -118,6 +118,30 @@
         .intraday-summary .sum-pos { color: #1f6b37; }
         .intraday-summary .sum-neg { color: #b91c1c; }
         .intraday-summary .sum-neutral { color: #6b7280; }
+
+        /* News item sentiment badge */
+        .news-sentiment-badge {
+            display: inline-block;
+            margin-left: 8px;
+            padding: 1px 7px;
+            border-radius: 999px;
+            font-size: 10.5px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            vertical-align: middle;
+        }
+        .news-sentiment-pos {
+            background: #e6f6ea;
+            color: #1f6b37;
+        }
+        .news-sentiment-neu {
+            background: #f0f1f3;
+            color: #6b7280;
+        }
+        .news-sentiment-neg {
+            background: #fde8e8;
+            color: #8a1f1f;
+        }
     </style>
 
 </head>
@@ -257,22 +281,60 @@
             No Apple news found yet. Please run manual ingestion.
         </div>
 
-        <div th:if="${appleNews != null && !#lists.isEmpty(appleNews)}" class="list-group">
-            <div class="list-group-item" th:each="news : ${appleNews}">
-                <h4 class="list-group-item-heading">
-                    <a th:href="${news.url}" th:text="${news.title}" target="_blank" rel="noopener noreferrer">News title</a>
-                </h4>
-                <p class="text-muted" style="margin-bottom: 8px;">
-                    <span th:text="${news.source}">Source</span>
-                    |
-                    <span th:text="${news.publishedAt}">Published time</span>
-                </p>
-                <p class="list-group-item-text" th:text="${news.summary}">News summary</p>
+        <div th:if="${appleNews != null && !#lists.isEmpty(appleNews)}" id="newsListContainer">
+            <div class="list-group" id="newsList">
+                <div class="list-group-item" th:each="news, stat : ${appleNews}"
+                     th:attr="data-news-index=${stat.index}">
+                    <h4 class="list-group-item-heading">
+                        <a th:href="${news.url}" th:text="${news.title}" target="_blank" rel="noopener noreferrer">News title</a>
+                    </h4>
+                    <p class="text-muted" style="margin-bottom: 8px;">
+                        <span th:text="${news.source}">Source</span>
+                        |
+                        <span th:text="${news.publishedAt}">Published time</span>
+                        <span th:if="${news.sentimentTone != null}"
+                              class="news-sentiment-badge"
+                              th:classappend="${news.sentimentTone == 'Positive' ? 'news-sentiment-pos' : (news.sentimentTone == 'Negative' ? 'news-sentiment-neg' : 'news-sentiment-neu')}"
+                              th:text="${news.sentimentTone}">Neutral</span>
+                    </p>
+                    <p class="list-group-item-text" th:text="${news.summary}">News summary</p>
+                </div>
             </div>
+            <button id="newsToggleBtn" class="btn btn-default btn-sm" style="margin-top:8px;display:none;"></button>
         </div>
     </div>
 
 </div>
+<script type="text/javascript">
+(function() {
+    var VISIBLE_COUNT = 5;
+    var list = document.getElementById("newsList");
+    var btn  = document.getElementById("newsToggleBtn");
+    if (!list || !btn) return;
+
+    var items = list.querySelectorAll("[data-news-index]");
+    if (items.length <= VISIBLE_COUNT) return;
+
+    var hidden = items.length - VISIBLE_COUNT;
+    var expanded = false;
+
+    function render() {
+        for (var i = VISIBLE_COUNT; i < items.length; i++) {
+            items[i].style.display = expanded ? "" : "none";
+        }
+        btn.textContent = expanded
+            ? "Show less"
+            : "Show more news (" + hidden + ")";
+    }
+
+    btn.style.display = "inline-block";
+    btn.addEventListener("click", function() {
+        expanded = !expanded;
+        render();
+    });
+    render();
+})();
+</script>
 <script th:inline="javascript">
 var apple = /*[[${apple}]]*/ [];
 var timepoint = /*[[${timepoint}]]*/ [];
