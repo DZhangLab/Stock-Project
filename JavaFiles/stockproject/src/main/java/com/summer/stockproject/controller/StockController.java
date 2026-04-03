@@ -36,7 +36,7 @@ public class StockController {
     private final CompanyNewsService companyNewsService;
 
     private static final Set<String> DAILY_RANGES = new HashSet<>(
-            Arrays.asList("1W", "1M", "3M", "6M", "YTD", "1Y"));
+            Arrays.asList("1M", "3M", "6M", "YTD", "1Y"));
 
     @Autowired
     public StockController(IntradayBarService intradayBarService,
@@ -77,19 +77,71 @@ public class StockController {
         boolean hasCustomRange = (start != null && !start.trim().isEmpty())
                 || (end != null && !end.trim().isEmpty());
 
-        // Determine if we should use the daily data path
-        boolean useDaily = !hasCustomRange && range != null && DAILY_RANGES.contains(range.toUpperCase());
+        // Determine which data path to use
         String activeRange = hasCustomRange ? "" : (range != null ? range.toUpperCase() : "1D");
+        boolean useDaily = !hasCustomRange && DAILY_RANGES.contains(activeRange);
+        boolean use30Min = !hasCustomRange && "1W".equals(activeRange);
 
         if (useDaily) {
             return handleDailyRange(displaySymbol, normalizedSymbol, activeRange, model);
+        } else if (use30Min) {
+            return handle30MinRange(displaySymbol, normalizedSymbol, model);
         } else {
             return handleIntradayRange(displaySymbol, normalizedSymbol, activeRange, start, end, model);
         }
     }
 
     /**
-     * Handle 1W/1M/3M/6M/YTD/1Y ranges using daily data from everydayAfterClose.
+     * Handle 1W using 30-minute aggregated intraday bars.
+     * Queries the per-symbol minute table for the last 7 calendar days,
+     * then aggregates into half-hour OHLCV bars server-side.
+     */
+    private String handle30MinRange(String displaySymbol, String normalizedSymbol,
+                                     Model model) {
+        // Find latest data point to anchor the 1W window
+        Timestamp latest = null;
+        try {
+            latest = intradayBarService.getLatestTimePoint(normalizedSymbol);
+        } catch (Exception ignored) {
+        }
+        if (latest == null) {
+            setEmptyModel(model, displaySymbol, "1W", "30min");
+            return "graphpages/graph-page";
+        }
+
+        LocalDate latestDate = latest.toLocalDateTime().toLocalDate();
+        LocalDate startDate = latestDate.minusWeeks(1);
+
+        // Query window: startDate 09:30 through latestDate 16:00
+        Timestamp sqlStart = Timestamp.valueOf(startDate.atTime(9, 30));
+        Timestamp sqlEnd = Timestamp.valueOf(latestDate.atTime(16, 0));
+
+        List<IntradayBar> aggregated = intradayBarService.findAggregated(
+                normalizedSymbol, sqlStart, sqlEnd, 10);
+
+        StockChartData chartData = new StockChartData(aggregated);
+
+        SimpleDateFormat displayFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+        model.addAttribute("apple", chartData.getPrice());
+        model.addAttribute("timepoint", chartData.getDateInSecond());
+        model.addAttribute("symbol", displaySymbol);
+        model.addAttribute("startDate", displayFormat.format(sqlStart));
+        model.addAttribute("endDate", displayFormat.format(sqlEnd));
+        model.addAttribute("dataCount", aggregated.size());
+        model.addAttribute("hasData", !aggregated.isEmpty());
+        model.addAttribute("dataGranularity", "30min");
+        model.addAttribute("activeRange", "1W");
+        model.addAttribute("showAppleNews", normalizedSymbol.equals("AAPL"));
+        if (normalizedSymbol.equals("AAPL")) {
+            model.addAttribute("appleNews", companyNewsService.getRecentAppleNews());
+        }
+
+        return "graphpages/graph-page";
+    }
+
+    /**
+     * Handle 1M/3M/6M/YTD/1Y ranges using daily data from everydayAfterClose.
      */
     private String handleDailyRange(String displaySymbol, String normalizedSymbol,
                                      String range, Model model) {

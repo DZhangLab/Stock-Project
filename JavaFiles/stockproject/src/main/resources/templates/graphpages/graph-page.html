@@ -212,7 +212,7 @@
     <div th:if="${hasData}" style="margin-top: 10px;">
         <!-- Summary bar (populated by getdata.js) -->
         <div id="intradaySummary" class="intraday-summary" style="display:none;"></div>
-        <div th:if="${dataCount < 10}" class="alert alert-info" style="margin-bottom: 20px;">
+        <div th:if="${dataGranularity == 'daily' ? dataCount < 3 : dataCount < 10}" class="alert alert-info" style="margin-bottom: 20px;">
             <strong>ℹ️ Limited Data:</strong> This date range has very few data points (<span th:text="${dataCount}"></span>).
             The chart may not display properly. Try selecting a date with more data, or expand the date range.
         </div>

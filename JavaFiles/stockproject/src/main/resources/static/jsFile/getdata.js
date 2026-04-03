@@ -96,7 +96,9 @@ $(document).ready(function () {
   // =====================================================
 
   var isDaily = (typeof dataGranularity !== "undefined" && dataGranularity === "daily");
-  var SMA_PERIOD = isDaily ? 20 : 7;
+  var isMultiDay = (typeof dataGranularity !== "undefined" && dataGranularity === "30min");
+  // SMA periods: daily=20 bars (~1 month), 1W 10-min=20 bars (~3.3 hours), 1D minute=7
+  var SMA_PERIOD = isDaily ? 20 : isMultiDay ? 20 : 7;
 
   function calculateSMA(closes, period) {
     var result = [];
@@ -140,10 +142,24 @@ $(document).ready(function () {
       borderColor: "#d1d4dc",
       timeVisible: !isDaily,
       secondsVisible: false,
-      tickMarkFormatter: function (time) {
+      fixLeftEdge: true,
+      fixRightEdge: true,
+      tickMarkFormatter: function (time, tickMarkType, locale) {
         var d = new Date(time * 1000);
         if (isDaily) {
           return (d.getUTCMonth() + 1) + "/" + d.getUTCDate();
+        }
+        if (isMultiDay) {
+          // Show date at day boundaries (first bar of a new trading day),
+          // time for other ticks.  Lightweight Charts passes tickMarkType:
+          //   0 = Year, 1 = Month, 2 = DayOfMonth, 3 = Time, 4 = TimeWithSeconds
+          // Type 2 (DayOfMonth) fires at the first bar of each new date.
+          if (tickMarkType <= 2) {
+            return (d.getUTCMonth() + 1) + "/" + d.getUTCDate();
+          }
+          var h = d.getUTCHours();
+          var m = d.getUTCMinutes();
+          return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
         }
         var h = d.getUTCHours();
         var m = d.getUTCMinutes();
@@ -157,6 +173,12 @@ $(document).ready(function () {
         var d = new Date(time * 1000);
         if (isDaily) {
           return (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + "/" + d.getUTCFullYear();
+        }
+        if (isMultiDay) {
+          // Tooltip: show full date + time
+          return (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + " " +
+            (d.getUTCHours() < 10 ? "0" : "") + d.getUTCHours() + ":" +
+            (d.getUTCMinutes() < 10 ? "0" : "") + d.getUTCMinutes();
         }
         var h = d.getUTCHours();
         var m = d.getUTCMinutes();
@@ -217,7 +239,11 @@ $(document).ready(function () {
     }
     var h = d.getUTCHours();
     var m = d.getUTCMinutes();
-    return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+    var hhmm = (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+    if (isMultiDay) {
+      return (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + " " + hhmm;
+    }
+    return hhmm;
   }
 
   legend.innerHTML = defaultLegend();
@@ -275,7 +301,7 @@ $(document).ready(function () {
   var rangeFrom = (typeof selectedStart !== "undefined") ? parseETDisplayString(selectedStart) : null;
   var rangeTo   = (typeof selectedEnd   !== "undefined") ? parseETDisplayString(selectedEnd)   : null;
 
-  if (isDaily) {
+  if (isDaily || isMultiDay) {
     chart.timeScale().fitContent();
   } else if (rangeFrom && rangeTo && rangeFrom < rangeTo) {
     chart.timeScale().setVisibleRange({ from: rangeFrom, to: rangeTo });
@@ -294,7 +320,7 @@ $(document).ready(function () {
   // =====================================================
 
   (function renderFutureHint() {
-    if (isDaily) return;
+    if (isDaily || isMultiDay) return;
     if (lineData.length < 1 || !rangeTo) return;
     var lastDataTime = lineData[lineData.length - 1].time;
     // Only show the hint when there is a meaningful gap (> 2 min)

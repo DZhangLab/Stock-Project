@@ -60,6 +60,28 @@ class QuoteCollector:
             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
+        ON DUPLICATE KEY UPDATE
+            name = VALUES(name),
+            exchange = VALUES(exchange),
+            currency = VALUES(currency),
+            timestamp = VALUES(timestamp),
+            open = VALUES(open),
+            high = VALUES(high),
+            low = VALUES(low),
+            close = VALUES(close),
+            volume = VALUES(volume),
+            previous_close = VALUES(previous_close),
+            `change` = VALUES(`change`),
+            percent_change = VALUES(percent_change),
+            average_volume = VALUES(average_volume),
+            is_market_open = VALUES(is_market_open),
+            fifty_two_week_low = VALUES(fifty_two_week_low),
+            fifty_two_week_high = VALUES(fifty_two_week_high),
+            fifty_two_week_low_change = VALUES(fifty_two_week_low_change),
+            fifty_two_week_high_change = VALUES(fifty_two_week_high_change),
+            fifty_two_week_low_change_percent = VALUES(fifty_two_week_low_change_percent),
+            fifty_two_week_high_change_percent = VALUES(fifty_two_week_high_change_percent),
+            fifty_two_week_range = VALUES(fifty_two_week_range)
         """
         
         # Convert boolean to int (0 or 1) for MySQL
