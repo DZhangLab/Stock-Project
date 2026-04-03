@@ -130,21 +130,22 @@ class DatabaseManager:
     def ensure_intraday_table(self, symbol: str, table_name: Optional[str] = None) -> bool:
         """
         Ensure intraday table exists for the given symbol.
-        Creates table if it doesn't exist.
-        
+        Creates table if it doesn't exist, then migrates legacy schema
+        if needed (INT price columns -> DECIMAL, missing UNIQUE KEY).
+
         Args:
             symbol: Stock symbol
             table_name: Optional custom table name (defaults to normalized symbol)
-            
+
         Returns:
             bool: True if table exists or was created successfully
         """
         from .symbols import normalize_table_name
-        
+
         if table_name is None:
             table_name = normalize_table_name(symbol)
-        
-        # Use DECIMAL for price data and DOUBLE for volume to match JS behavior
+
+        # Use DECIMAL for price data and DOUBLE for volume
         create_table_sql = f"""
         CREATE TABLE IF NOT EXISTS {table_name} (
             id INT NOT NULL AUTO_INCREMENT,
@@ -159,14 +160,82 @@ class DatabaseManager:
             INDEX idx_timepoint (timePoint)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         """
-        
+
         try:
             self.execute(create_table_sql)
+            self._migrate_intraday_schema(table_name)
             logger.info(f"Table {table_name} ensured for symbol {symbol}")
             return True
         except Error as e:
             logger.error(f"Error creating table {table_name}: {e}")
             return False
+
+    def _migrate_intraday_schema(self, table_name: str) -> None:
+        """
+        Migrate legacy intraday tables to the current schema.
+
+        Fixes two problems found in tables created before the Python
+        ingestion system was introduced:
+
+        1. Price columns (minuteOpen/High/Low/Close) were INT, which
+           truncated decimal prices on insert.  Changed to DECIMAL(18,4).
+        2. Missing UNIQUE KEY on timePoint, which prevented ON DUPLICATE
+           KEY UPDATE from working correctly.  Duplicates are removed
+           (keeping the newest row) before adding the constraint.
+
+        This method is idempotent — it checks information_schema before
+        making any changes and is safe to call on every startup.
+        """
+        db_name = self.config.database
+
+        # --- Step 1: Fix INT price columns -> DECIMAL(18,4) ---
+        col_rows = self.execute(
+            """
+            SELECT DATA_TYPE FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s
+              AND COLUMN_NAME = 'minuteOpen'
+            LIMIT 1
+            """,
+            (db_name, table_name),
+        ) or []
+        if col_rows and col_rows[0][0] == "int":
+            self.execute(f"""
+                ALTER TABLE {table_name}
+                    MODIFY minuteOpen  DECIMAL(18, 4),
+                    MODIFY minuteHigh  DECIMAL(18, 4),
+                    MODIFY minuteLow   DECIMAL(18, 4),
+                    MODIFY minuteClose DECIMAL(18, 4),
+                    MODIFY minuteVolume DOUBLE
+            """)
+            logger.info(
+                f"Migrated {table_name}: price columns INT -> DECIMAL(18,4)"
+            )
+
+        # --- Step 2: Ensure UNIQUE KEY uq_timepoint exists ---
+        uq_rows = self.execute(
+            """
+            SELECT 1 FROM information_schema.STATISTICS
+            WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s
+              AND INDEX_NAME = 'uq_timepoint'
+            LIMIT 1
+            """,
+            (db_name, table_name),
+        ) or []
+        if not uq_rows:
+            # Remove duplicate timePoints (keep the highest id per group)
+            self.execute(f"""
+                DELETE a FROM {table_name} a
+                INNER JOIN (
+                    SELECT timePoint, MAX(id) AS keep_id
+                    FROM {table_name}
+                    GROUP BY timePoint
+                    HAVING COUNT(*) > 1
+                ) b ON a.timePoint = b.timePoint AND a.id < b.keep_id
+            """)
+            self.execute(
+                f"ALTER TABLE {table_name} ADD UNIQUE KEY uq_timepoint (timePoint)"
+            )
+            logger.info(f"Added UNIQUE KEY uq_timepoint to {table_name}")
 
     def ensure_company_news_table(self) -> bool:
         """
