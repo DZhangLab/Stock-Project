@@ -165,14 +165,15 @@ $(document).ready(function () {
   });
   lineSeries.setData(lineData);
 
-  // --- SMA overlay ---
+  // --- SMA overlay (muted, behind the price line) ---
+  var SMA_COLOR = "rgba(200, 160, 110, 0.50)";
   var smaSeries = chart.addLineSeries({
-    color: "#E91E63",
+    color: SMA_COLOR,
     lineWidth: 1,
-    lineStyle: 0,
+    lineStyle: 2,
     priceLineVisible: false,
     lastValueVisible: false,
-    crosshairMarkerVisible: true
+    crosshairMarkerVisible: false
   });
   smaSeries.setData(smaData);
 
@@ -225,7 +226,7 @@ $(document).ready(function () {
         formatPrice(price.value) + "</span>";
     }
     if (sma && sma.value != null) {
-      parts += ' <span style="color:#E91E63;">SMA ' +
+      parts += ' <span style="color:#b0906a;">SMA ' +
         formatPrice(sma.value) + "</span>";
     }
     legend.innerHTML = parts;
@@ -267,7 +268,50 @@ $(document).ready(function () {
   }
 
   // =====================================================
-  // 6. Intraday summary bar
+  // 6. Future-time region hint
+  //
+  //    When the visible range extends past the last data point
+  //    (e.g. market still open, session end is 16:00 but data
+  //    only goes to 14:35), shade the empty future region with
+  //    a very faint overlay so it reads as "no data yet" rather
+  //    than a rendering glitch.
+  // =====================================================
+
+  (function renderFutureHint() {
+    if (lineData.length < 1 || !rangeTo) return;
+    var lastDataTime = lineData[lineData.length - 1].time;
+    // Only show the hint when there is a meaningful gap (> 2 min)
+    if (rangeTo - lastDataTime < 120) return;
+
+    var overlay = document.createElement("div");
+    overlay.style.cssText =
+      "position:absolute;top:0;bottom:22px;pointer-events:none;" +
+      "background:repeating-linear-gradient(" +
+      "135deg,transparent,transparent 6px,rgba(0,0,0,0.018) 6px,rgba(0,0,0,0.018) 7px);" +
+      "z-index:1;border-left:1px dashed rgba(0,0,0,0.08);";
+    container.appendChild(overlay);
+
+    function positionOverlay() {
+      var ts = chart.timeScale();
+      var lastX = ts.timeToCoordinate(lastDataTime);
+      var endX  = ts.timeToCoordinate(rangeTo);
+      if (lastX == null || endX == null || endX <= lastX) {
+        overlay.style.display = "none";
+        return;
+      }
+      overlay.style.display = "block";
+      overlay.style.left  = Math.round(lastX) + "px";
+      overlay.style.width = Math.round(endX - lastX) + "px";
+    }
+
+    // Position on first render and on every scroll/zoom
+    positionOverlay();
+    chart.timeScale().subscribeVisibleTimeRangeChange(positionOverlay);
+    window.addEventListener("resize", positionOverlay);
+  })();
+
+  // =====================================================
+  // 7. Intraday summary bar
   //
   //    Computed from lineData (the deduplicated, sorted
   //    price series already used by the chart).
