@@ -96,7 +96,8 @@ $(document).ready(function () {
   // =====================================================
 
   var isDaily = (typeof dataGranularity !== "undefined" && dataGranularity === "daily");
-  var isMultiDay = (typeof dataGranularity !== "undefined" && dataGranularity === "30min");
+  var isMultiDay = (typeof dataGranularity !== "undefined"
+      && (dataGranularity === "30min" || dataGranularity === "sampled"));
   // SMA periods: daily=20 bars (~1 month), 1W 10-min=20 bars (~3.3 hours), 1D minute=7
   var SMA_PERIOD = isDaily ? 20 : isMultiDay ? 20 : 7;
 

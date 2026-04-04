@@ -36,7 +36,7 @@ public class StockController {
     private final CompanyNewsService companyNewsService;
 
     private static final Set<String> DAILY_RANGES = new HashSet<>(
-            Arrays.asList("1M", "3M", "6M", "YTD", "1Y"));
+            Arrays.asList("3M", "6M", "YTD", "1Y"));
 
     @Autowired
     public StockController(IntradayBarService intradayBarService,
@@ -81,9 +81,12 @@ public class StockController {
         String activeRange = hasCustomRange ? "" : (range != null ? range.toUpperCase() : "1D");
         boolean useDaily = !hasCustomRange && DAILY_RANGES.contains(activeRange);
         boolean use30Min = !hasCustomRange && "1W".equals(activeRange);
+        boolean use1mSampled = !hasCustomRange && "1M".equals(activeRange);
 
         if (useDaily) {
             return handleDailyRange(displaySymbol, normalizedSymbol, activeRange, model);
+        } else if (use1mSampled) {
+            return handle1MonthSampled(displaySymbol, normalizedSymbol, model);
         } else if (use30Min) {
             return handle30MinRange(displaySymbol, normalizedSymbol, model);
         } else {
@@ -144,7 +147,164 @@ public class StockController {
     }
 
     /**
-     * Handle 1M/3M/6M/YTD/1Y ranges using daily data from everydayAfterClose.
+     * Fixed anchor times (ET) for 1M sampling: 5 points per trading day.
+     * Chosen to cover the regular session evenly:
+     *   10:00 — 30 min after open
+     *   11:30 — late morning
+     *   13:00 — midday
+     *   14:30 — mid-afternoon
+     *   16:00 — market close
+     */
+    private static final LocalTime[] ANCHOR_TIMES = {
+            LocalTime.of(10, 0),
+            LocalTime.of(11, 30),
+            LocalTime.of(13, 0),
+            LocalTime.of(14, 30),
+            LocalTime.of(16, 0)
+    };
+
+    /** Maximum minutes before an anchor to accept as a nearest-earlier match. */
+    private static final int ANCHOR_TOLERANCE_MINUTES = 30;
+
+    /**
+     * Handle 1M using anchor-point sampling from intraday minute data.
+     *
+     * Instead of one daily-close point per trading day, this selects up to
+     * 5 intraday points per day at fixed anchor times (10:00, 11:30, 13:00,
+     * 14:30, 16:00 ET).  For each anchor, the nearest earlier minute bar
+     * within a 30-minute tolerance window is chosen.  No synthetic data is
+     * created — slots with no nearby bar are simply skipped.
+     */
+    private String handle1MonthSampled(String displaySymbol, String normalizedSymbol,
+                                        Model model) {
+        // Find latest intraday data point to anchor the 1M window
+        Timestamp latest = null;
+        try {
+            latest = intradayBarService.getLatestTimePoint(normalizedSymbol);
+        } catch (Exception ignored) {
+        }
+        if (latest == null) {
+            setEmptyModel(model, displaySymbol, "1M", "sampled");
+            return "graphpages/graph-page";
+        }
+
+        LocalDate latestDate = latest.toLocalDateTime().toLocalDate();
+        LocalDate startDate = latestDate.minusMonths(1);
+
+        // Query the full intraday dataset for the month (09:30 through 16:00 each day)
+        Timestamp sqlStart = Timestamp.valueOf(startDate.atTime(9, 30));
+        Timestamp sqlEnd = Timestamp.valueOf(latestDate.atTime(16, 0));
+
+        List<IntradayBar> allBars = intradayBarService.universalfind(
+                normalizedSymbol, sqlStart, sqlEnd);
+
+        // Sample anchor points from the raw minute bars
+        List<IntradayBar> sampled = sampleAnchorPoints(allBars);
+
+        StockChartData chartData = new StockChartData(sampled);
+
+        SimpleDateFormat displayFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        String rangeStartDate = startDate.toString();
+        String rangeEndDate = latestDate.toString();
+
+        model.addAttribute("apple", chartData.getPrice());
+        model.addAttribute("timepoint", chartData.getDateInSecond());
+        model.addAttribute("symbol", displaySymbol);
+        model.addAttribute("startDate", displayFormat.format(sqlStart));
+        model.addAttribute("endDate", displayFormat.format(sqlEnd));
+        model.addAttribute("dataCount", sampled.size());
+        model.addAttribute("hasData", !sampled.isEmpty());
+        model.addAttribute("dataGranularity", "sampled");
+        model.addAttribute("activeRange", "1M");
+        model.addAttribute("rangeStartDate", rangeStartDate);
+        model.addAttribute("rangeEndDate", rangeEndDate);
+        addNewsAttributes(model, displaySymbol, normalizedSymbol,
+                rangeStartDate, rangeEndDate);
+
+        return "graphpages/graph-page";
+    }
+
+    /**
+     * Given a chronologically sorted list of minute bars spanning multiple
+     * trading days, select at most one bar per anchor time per day.
+     *
+     * Algorithm (single pass, O(n)):
+     *   1. Group bars by calendar date (they arrive sorted by timePoint ASC).
+     *   2. Within each day, for each anchor time, find the bar whose
+     *      timestamp is closest-to-but-not-after the anchor, within the
+     *      tolerance window.
+     *   3. Collect all selected bars in chronological order.
+     */
+    private List<IntradayBar> sampleAnchorPoints(List<IntradayBar> bars) {
+        if (bars.isEmpty()) {
+            return List.of();
+        }
+
+        List<IntradayBar> result = new java.util.ArrayList<>();
+
+        // Process bars day by day.  Because the input is sorted ASC, we
+        // accumulate one day's bars, sample them, then move to the next day.
+        LocalDate currentDay = null;
+        List<IntradayBar> dayBars = new java.util.ArrayList<>();
+
+        for (IntradayBar bar : bars) {
+            LocalDate barDate = bar.getTimePoint().toLocalDateTime().toLocalDate();
+            if (currentDay != null && !barDate.equals(currentDay)) {
+                // Day boundary — sample the completed day
+                sampleDay(dayBars, result);
+                dayBars.clear();
+            }
+            currentDay = barDate;
+            dayBars.add(bar);
+        }
+        // Sample the last day
+        if (!dayBars.isEmpty()) {
+            sampleDay(dayBars, result);
+        }
+
+        return result;
+    }
+
+    /**
+     * For a single trading day's bars (sorted ASC by timePoint), pick the
+     * best bar for each anchor time and append to {@code out}.
+     */
+    private void sampleDay(List<IntradayBar> dayBars, List<IntradayBar> out) {
+        for (LocalTime anchor : ANCHOR_TIMES) {
+            IntradayBar best = null;
+            long bestDiff = Long.MAX_VALUE;
+
+            for (IntradayBar bar : dayBars) {
+                LocalTime barTime = bar.getTimePoint().toLocalDateTime().toLocalTime();
+
+                // Bar must be at or before the anchor time
+                if (barTime.isAfter(anchor)) {
+                    continue;
+                }
+
+                long diffSeconds = java.time.Duration.between(barTime, anchor).getSeconds();
+
+                // Must be within tolerance window
+                if (diffSeconds > (long) ANCHOR_TOLERANCE_MINUTES * 60) {
+                    continue;
+                }
+
+                // Prefer the bar closest to the anchor (smallest diff)
+                if (diffSeconds < bestDiff) {
+                    bestDiff = diffSeconds;
+                    best = bar;
+                }
+            }
+
+            if (best != null) {
+                out.add(best);
+            }
+        }
+    }
+
+    /**
+     * Handle 3M/6M/YTD/1Y ranges using daily data from everydayAfterClose.
+     * (1M is handled separately by handle1MonthSampled.)
      */
     private String handleDailyRange(String displaySymbol, String normalizedSymbol,
                                      String range, Model model) {
