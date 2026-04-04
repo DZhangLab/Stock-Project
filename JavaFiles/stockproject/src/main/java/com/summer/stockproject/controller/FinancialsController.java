@@ -150,6 +150,64 @@ public class FinancialsController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Calendar-day-aware news AI summary.
+     *
+     * Lookup order:
+     *   1. Exact match:  analysis_date = asOfDate
+     *   2. Fallback:     most recent  analysis_date < asOfDate
+     *
+     * asOfDate should equal the chart's rangeEnd (yyyy-MM-dd).
+     * When asOfDate is absent, returns the absolute latest summary.
+     */
+    @GetMapping("/news-ai/by-date")
+    public ResponseEntity<Map<String, Object>> getNewsAiSummaryByDate(
+            @RequestParam(defaultValue = "AAPL") String symbol,
+            @RequestParam(required = false) String asOfDate
+    ) {
+        String trimmedAsOf = (asOfDate != null && !asOfDate.trim().isEmpty())
+                ? asOfDate.trim() : null;
+
+        CompanyNewsAiSummary summary;
+        if (trimmedAsOf != null) {
+            summary = companyNewsAiSummaryService.getBySymbolAsOfDate(symbol, trimmedAsOf);
+        } else {
+            summary = companyNewsAiSummaryService.getLatestBySymbol(symbol);
+        }
+
+        if (summary == null) {
+            Map<String, Object> notFound = new LinkedHashMap<>();
+            notFound.put("symbol", symbol == null ? "" : symbol.trim().toUpperCase());
+            notFound.put("message", "No AI news summary found for the requested date");
+            return ResponseEntity.status(404).body(notFound);
+        }
+
+        // Determine whether the returned summary is an exact calendar-day
+        // match for the requested date, or a fallback to an earlier summary.
+        String actualDate = summary.getAnalysisDate() == null
+                ? null : summary.getAnalysisDate().toString();
+        boolean exactMatch = (trimmedAsOf != null && trimmedAsOf.equals(actualDate));
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("symbol", summary.getSymbol());
+        response.put("analysisDate", actualDate);
+        response.put("requestedDate", trimmedAsOf);
+        response.put("exactMatch", exactMatch);
+        response.put("sourceWindowLabel", summary.getSourceWindowLabel());
+        response.put("sourceNewsCount", summary.getSourceNewsCount());
+        response.put("overallSentimentLabel", summary.getOverallSentimentLabel());
+        response.put("overallSentimentSummary", summary.getOverallSentimentSummary());
+        response.put("mainThemes", parseStringArray(summary.getMainThemesJson()));
+        response.put("topPositiveDriver", summary.getTopPositiveDriver());
+        response.put("topRiskConcern", summary.getTopRiskConcern());
+        response.put("confidenceNote", summary.getConfidenceNote());
+        response.put("provider", summary.getProvider());
+        response.put("modelName", summary.getModelName());
+        response.put("promptVersion", summary.getPromptVersion());
+        response.put("updatedAt", summary.getUpdatedAt() == null ? null : summary.getUpdatedAt().toString());
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/earnings-ai/periods")
     public ResponseEntity<Map<String, Object>> getEarningsAiPeriods(
             @RequestParam(defaultValue = "AAPL") String symbol

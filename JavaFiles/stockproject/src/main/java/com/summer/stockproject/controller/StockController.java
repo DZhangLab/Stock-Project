@@ -123,6 +123,9 @@ public class StockController {
 
         SimpleDateFormat displayFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
+        String rangeStartDate = startDate.toString();
+        String rangeEndDate = latestDate.toString();
+
         model.addAttribute("apple", chartData.getPrice());
         model.addAttribute("timepoint", chartData.getDateInSecond());
         model.addAttribute("symbol", displaySymbol);
@@ -132,10 +135,10 @@ public class StockController {
         model.addAttribute("hasData", !aggregated.isEmpty());
         model.addAttribute("dataGranularity", "30min");
         model.addAttribute("activeRange", "1W");
-        model.addAttribute("showAppleNews", normalizedSymbol.equals("AAPL"));
-        if (normalizedSymbol.equals("AAPL")) {
-            model.addAttribute("appleNews", companyNewsService.getRecentAppleNews());
-        }
+        model.addAttribute("rangeStartDate", rangeStartDate);
+        model.addAttribute("rangeEndDate", rangeEndDate);
+        addNewsAttributes(model, displaySymbol, normalizedSymbol,
+                rangeStartDate, rangeEndDate);
 
         return "graphpages/graph-page";
     }
@@ -165,6 +168,9 @@ public class StockController {
 
         DailyChartData chartData = new DailyChartData(dailyData);
 
+        String rangeStartDate = startDateStr;
+        String rangeEndDate = latestDate;
+
         model.addAttribute("apple", chartData.getPrice());
         model.addAttribute("timepoint", chartData.getDateInSecond());
         model.addAttribute("symbol", displaySymbol);
@@ -174,10 +180,10 @@ public class StockController {
         model.addAttribute("hasData", !dailyData.isEmpty());
         model.addAttribute("dataGranularity", "daily");
         model.addAttribute("activeRange", range);
-        model.addAttribute("showAppleNews", normalizedSymbol.equals("AAPL"));
-        if (normalizedSymbol.equals("AAPL")) {
-            model.addAttribute("appleNews", companyNewsService.getRecentAppleNews());
-        }
+        model.addAttribute("rangeStartDate", rangeStartDate);
+        model.addAttribute("rangeEndDate", rangeEndDate);
+        addNewsAttributes(model, displaySymbol, normalizedSymbol,
+                rangeStartDate, rangeEndDate);
 
         return "graphpages/graph-page";
     }
@@ -205,6 +211,10 @@ public class StockController {
         List<IntradayBar> filteredData = intradayBarService.universalfind(normalizedSymbol, sqlStart, sqlEnd);
         StockChartData listData = new StockChartData(filteredData);
 
+        // For intraday, extract the calendar date from the timestamps
+        String rangeStartDate = new SimpleDateFormat("yyyy-MM-dd").format(startDate);
+        String rangeEndDate = new SimpleDateFormat("yyyy-MM-dd").format(endDate);
+
         model.addAttribute("apple", listData.getPrice());
         model.addAttribute("timepoint", listData.getDateInSecond());
         model.addAttribute("symbol", displaySymbol);
@@ -214,12 +224,29 @@ public class StockController {
         model.addAttribute("hasData", !filteredData.isEmpty());
         model.addAttribute("dataGranularity", "minute");
         model.addAttribute("activeRange", activeRange);
-        model.addAttribute("showAppleNews", normalizedSymbol.equals("AAPL"));
-        if (normalizedSymbol.equals("AAPL")) {
-            model.addAttribute("appleNews", companyNewsService.getRecentAppleNews());
-        }
+        model.addAttribute("rangeStartDate", rangeStartDate);
+        model.addAttribute("rangeEndDate", rangeEndDate);
+        addNewsAttributes(model, displaySymbol, normalizedSymbol,
+                rangeStartDate, rangeEndDate);
 
         return "graphpages/graph-page";
+    }
+
+    /**
+     * Populate news-related model attributes using the chart's date range.
+     * News items and the AI summary are filtered to match the chart window
+     * instead of always showing the latest available data.
+     */
+    private void addNewsAttributes(Model model, String displaySymbol,
+                                    String normalizedSymbol,
+                                    String rangeStartDate, String rangeEndDate) {
+        boolean showNews = normalizedSymbol.equals("AAPL");
+        model.addAttribute("showAppleNews", showNews);
+        if (showNews) {
+            model.addAttribute("appleNews",
+                    companyNewsService.getNewsBySymbolAndDateRange(
+                            displaySymbol, rangeStartDate, rangeEndDate));
+        }
     }
 
     private void setEmptyModel(Model model, String symbol, String range, String granularity) {
@@ -232,6 +259,8 @@ public class StockController {
         model.addAttribute("hasData", false);
         model.addAttribute("dataGranularity", granularity);
         model.addAttribute("activeRange", range);
+        model.addAttribute("rangeStartDate", "");
+        model.addAttribute("rangeEndDate", "");
         model.addAttribute("showAppleNews", false);
     }
 
