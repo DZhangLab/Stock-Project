@@ -188,16 +188,42 @@ $(document).ready(function () {
     }
   });
 
+  // --- Direction-based color for the main price line ---
+  var firstClose = lineData[0].value;
+  var lastClose  = lineData[lineData.length - 1].value;
+  var isUp = lastClose >= firstClose;
+
+  var LINE_COLOR_UP   = "#26a69a";   // teal-green
+  var LINE_COLOR_DOWN = "#ef5350";   // red
+  var FILL_COLOR_UP   = "rgba(38, 166, 154, 0.12)";
+  var FILL_COLOR_DOWN = "rgba(239, 83, 80, 0.12)";
+
+  var dirLineColor = isUp ? LINE_COLOR_UP : LINE_COLOR_DOWN;
+  var dirFillColor = isUp ? FILL_COLOR_UP : FILL_COLOR_DOWN;
+
   // --- Primary price line ---
   var lineSeries = chart.addLineSeries({
-    color: "#2962FF",
+    color: dirLineColor,
     lineWidth: 2,
     crosshairMarkerVisible: true,
     crosshairMarkerRadius: 4,
     priceLineVisible: true,
+    priceLineColor: dirLineColor,
     lastValueVisible: true
   });
   lineSeries.setData(lineData);
+
+  // --- Filled area under the price line ---
+  var areaSeries = chart.addAreaSeries({
+    topColor: dirFillColor,
+    bottomColor: "rgba(0, 0, 0, 0)",
+    lineColor: "rgba(0, 0, 0, 0)",
+    lineWidth: 0,
+    priceLineVisible: false,
+    lastValueVisible: false,
+    crosshairMarkerVisible: false
+  });
+  areaSeries.setData(lineData);
 
   // --- SMA overlay (muted, behind the price line) ---
   var SMA_COLOR = "rgba(200, 160, 110, 0.50)";
@@ -228,6 +254,8 @@ $(document).ready(function () {
       '<span style="color:#999;font-size:11px;margin-left:6px;">' +
       'Price & SMA(' + SMA_PERIOD + ') \u00b7 ET</span>';
   }
+
+  var PRICE_LEGEND_COLOR = dirLineColor;
 
   function formatPrice(v) {
     return v == null ? "\u2014" : "$" + v.toFixed(2);
@@ -263,7 +291,7 @@ $(document).ready(function () {
     parts += '<span style="color:#666;font-size:11px;">' +
       formatTime(param.time) + ' ET</span> ';
     if (price && price.value != null) {
-      parts += ' <span style="color:#2962FF;font-weight:600;">' +
+      parts += ' <span style="color:' + PRICE_LEGEND_COLOR + ';font-weight:600;">' +
         formatPrice(price.value) + "</span>";
     }
     if (sma && sma.value != null) {
