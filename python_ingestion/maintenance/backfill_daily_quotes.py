@@ -27,16 +27,67 @@ Usage:
     python -m python_ingestion.maintenance.backfill_daily_quotes \\
         --all-symbols --start-date 2025-04-03 --end-date 2026-04-03
 
-Limitation:
-    TwelveData free-tier rate limits apply.  The script pauses 1 second
-    between API calls.  For 500 symbols this takes ~8-9 minutes.
+Rate limiting:
+    A sliding-window rate limiter keeps requests within the TwelveData
+    per-minute credit limit (default: 8 req/min for the free tier).
+    For 505 symbols at 8 rpm this takes approximately 63 minutes.
+    Adjust with --rpm if your plan allows more.
 """
 import argparse
 import logging
 import sys
 import time
+from collections import deque
 
 logger = logging.getLogger(__name__)
+
+# TwelveData free-tier per-minute credit limit.
+# The free plan allows 8 API credits per minute.
+DEFAULT_RPM = 8
+
+# Extra seconds to wait beyond the sliding-window boundary, to avoid
+# race conditions with the server's own clock.
+RATE_LIMIT_MARGIN = 2.0
+
+
+class RateLimiter:
+    """
+    Sliding-window rate limiter for TwelveData API calls.
+
+    Tracks timestamps of the last N requests within a 60-second window.
+    Before each request, if the window is full, sleeps until the oldest
+    request falls outside the window.
+    """
+
+    def __init__(self, max_per_minute: int):
+        self.max_per_minute = max_per_minute
+        self.window = 60.0  # seconds
+        self.timestamps: deque = deque()
+
+    def acquire(self):
+        """Block until it is safe to make the next request, then record it."""
+        now = time.monotonic()
+
+        # Evict timestamps older than the window
+        while self.timestamps and (now - self.timestamps[0]) >= self.window:
+            self.timestamps.popleft()
+
+        if len(self.timestamps) >= self.max_per_minute:
+            oldest = self.timestamps[0]
+            sleep_for = (oldest + self.window) - now + RATE_LIMIT_MARGIN
+            if sleep_for > 0:
+                logger.info(
+                    "Rate limiter: %d/%d credits used in window, sleeping %.1fs",
+                    len(self.timestamps), self.max_per_minute, sleep_for,
+                )
+                time.sleep(sleep_for)
+
+            # Evict again after sleeping
+            now = time.monotonic()
+            while self.timestamps and (now - self.timestamps[0]) >= self.window:
+                self.timestamps.popleft()
+
+        self.timestamps.append(time.monotonic())
 
 UPSERT_SQL = """
 INSERT INTO everydayAfterClose (
@@ -167,7 +218,8 @@ def backfill_symbol(api_client, db, symbol: str,
     return result
 
 
-def run_backfill(symbols: list, start_date: str, end_date: str, dry_run: bool):
+def run_backfill(symbols: list, start_date: str, end_date: str,
+                 dry_run: bool, rpm: int = DEFAULT_RPM):
     from ..config import load_config
     from ..db import get_db_manager
     from ..twelve_data import TwelveDataClient
@@ -185,7 +237,11 @@ def run_backfill(symbols: list, start_date: str, end_date: str, dry_run: bool):
         )
         sys.exit(1)
 
+    limiter = RateLimiter(rpm)
+    est_minutes = len(symbols) * 60.0 / rpm / 60.0
+
     print(f"\nBackfilling {len(symbols)} symbol(s): {start_date} to {end_date}")
+    print(f"Rate limit: {rpm} requests/minute (estimated ~{est_minutes:.0f} min)")
     if dry_run:
         print("[DRY RUN MODE — no writes]\n")
     else:
@@ -193,6 +249,11 @@ def run_backfill(symbols: list, start_date: str, end_date: str, dry_run: bool):
 
     results = []
     for i, symbol in enumerate(symbols, 1):
+        # Wait for rate-limit clearance before each API call.
+        # Dry-run still calls the API (to report fetched counts), so
+        # the limiter applies in both modes.
+        limiter.acquire()
+
         print(f"[{i}/{len(symbols)}] {symbol}...", end=" ", flush=True)
         r = backfill_symbol(api_client, db, symbol, start_date, end_date, dry_run)
 
@@ -204,10 +265,6 @@ def run_backfill(symbols: list, start_date: str, end_date: str, dry_run: bool):
             print(f"OK ({r['fetched']} fetched, {r['upserted']} upserted)")
 
         results.append(r)
-
-        # Rate-limit between API calls
-        if i < len(symbols):
-            time.sleep(1)
 
     # --- Summary ---
     succeeded = [r for r in results if r["error"] is None]
@@ -261,7 +318,14 @@ def main():
         "--dry-run", action="store_true",
         help="Preview what would be fetched without writing to the database.",
     )
+    parser.add_argument(
+        "--rpm", type=int, default=DEFAULT_RPM,
+        help=f"Max API requests per minute (default: {DEFAULT_RPM}).",
+    )
     args = parser.parse_args()
+
+    if args.rpm < 1:
+        parser.error("--rpm must be at least 1.")
 
     if args.all_symbols:
         from ..symbols import load_symbols
@@ -271,7 +335,7 @@ def main():
     else:
         parser.error("Provide --symbol or --all-symbols.")
 
-    run_backfill(symbols, args.start_date, args.end_date, args.dry_run)
+    run_backfill(symbols, args.start_date, args.end_date, args.dry_run, args.rpm)
 
 
 if __name__ == "__main__":
