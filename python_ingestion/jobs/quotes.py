@@ -5,6 +5,7 @@ Corresponds to app.js functionality.
 import logging
 from typing import Optional
 from datetime import datetime
+import zoneinfo
 
 from ..config import load_config
 from ..symbols import load_symbols
@@ -12,6 +13,13 @@ from ..db import get_db_manager
 from ..twelve_data import TwelveDataClient, QuoteModel
 
 logger = logging.getLogger(__name__)
+
+# Quote collection is restricted to this time window (America/Chicago).
+# The scheduler CronTrigger enforces the window at the trigger level;
+# this constant is used for a defensive guard inside the job itself.
+_QUOTE_TZ = zoneinfo.ZoneInfo("America/Chicago")
+_QUOTE_START_HOUR = 8   # 08:00 inclusive
+_QUOTE_END_HOUR = 18    # 18:00 exclusive
 
 
 class QuoteCollector:
@@ -174,11 +182,28 @@ def get_quote_collector() -> QuoteCollector:
     return _collector
 
 
+def _outside_collection_window() -> bool:
+    """Return True if current America/Chicago time is outside 08:00-18:00."""
+    now = datetime.now(_QUOTE_TZ)
+    return now.hour < _QUOTE_START_HOUR or now.hour >= _QUOTE_END_HOUR
+
+
 def run_quote_cycle():
     """
     Function to be called by scheduler.
     Runs one quote collection cycle.
     """
+    # Defensive guard: skip if outside the allowed collection window,
+    # even if the scheduler fires unexpectedly.
+    if _outside_collection_window():
+        now = datetime.now(_QUOTE_TZ)
+        logger.info(
+            "Quote collection skipped: current time %s is outside "
+            "the %02d:00-%02d:00 America/Chicago window.",
+            now.strftime("%H:%M %Z"), _QUOTE_START_HOUR, _QUOTE_END_HOUR,
+        )
+        return
+
     collector = get_quote_collector()
     result = collector.run_quote_cycle()
     

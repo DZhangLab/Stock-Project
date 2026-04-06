@@ -7,7 +7,6 @@ import signal
 import sys
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.interval import IntervalTrigger
 
 from .jobs.quotes import run_quote_cycle
 from .jobs.intraday import run_intraday_cycle
@@ -46,10 +45,17 @@ def setup_signal_handlers():
 
 def register_jobs():
     """Register scheduled jobs with the scheduler."""
-    # Quote collection job: runs every 9 seconds (matching app.js cron schedule)
+    # Quote collection job: runs once per minute, only during 08:00-17:59 America/Chicago.
+    # Staggered to second :30 of each minute so quote and intraday API calls
+    # don't land in the same second (intraday fires at :00).
     scheduler.add_job(
         run_quote_cycle,
-        trigger=IntervalTrigger(seconds=9),
+        trigger=CronTrigger(
+            second="30",
+            minute="*",
+            hour="8-17",
+            timezone="America/Chicago",
+        ),
         id="quote_collection",
         name="Daily Quote Collection",
         max_instances=1,
@@ -123,7 +129,7 @@ def register_jobs():
     )
 
     logger.info("Scheduled jobs registered:")
-    logger.info("  - Quote Collection: every 9 seconds")
+    logger.info("  - Quote Collection: every minute at :30s, 08:00-17:59 America/Chicago")
     logger.info("  - Intraday Collection: every minute, 08:00-17:59 America/Chicago")
     logger.info("  - AAPL News Ingestion: daily at 08:00")
     logger.info("  - AAPL Company News AI Summary: daily at 08:10")
