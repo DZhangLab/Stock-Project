@@ -62,9 +62,9 @@ public class IntradayBarServiceImpl implements IntradayBarService {
             throw new IllegalArgumentException("Invalid table name: " + tablename);
         }
 
-        // Handle META -> FB mapping (Facebook changed ticker from FB to META)
-        if (tablename.equals("META")) {
-            tablename = "FB";
+        // Handle FB -> META mapping (Facebook rebranded from FB to META)
+        if (tablename.equals("FB")) {
+            tablename = "META";
         }
 
         String sql = "SELECT * FROM `" + tablename + "` u WHERE u.timePoint >= :start AND u.timePoint <= :end ORDER BY u.timePoint ASC";
@@ -141,9 +141,9 @@ public class IntradayBarServiceImpl implements IntradayBarService {
             throw new IllegalArgumentException("Invalid table name: " + tablename);
         }
 
-        // Handle META -> FB mapping (Facebook changed ticker from FB to META)
-        if (tablename.equals("META")) {
-            tablename = "FB";
+        // Handle FB -> META mapping (Facebook rebranded from FB to META)
+        if (tablename.equals("FB")) {
+            tablename = "META";
         }
 
         String sql = "SELECT MAX(timePoint) FROM `" + tablename + "`";

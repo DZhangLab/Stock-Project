@@ -71,6 +71,9 @@ public class StockController {
             normalizedSymbol = "KEYS1";
         } else if (normalizedSymbol.equals("KEY")) {
             normalizedSymbol = "KEY1";
+        } else if (normalizedSymbol.equals("FB")) {
+            normalizedSymbol = "META";
+            displaySymbol = "META";
         }
 
         // Explicit start/end takes precedence over range

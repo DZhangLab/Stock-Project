@@ -15,8 +15,8 @@ public class DailyQuoteServiceImpl implements DailyQuoteService {
     private EntityManager entityManager;
 
     private String normalizeSymbol(String symbol) {
-        if ("META".equalsIgnoreCase(symbol)) {
-            return "FB";
+        if ("FB".equalsIgnoreCase(symbol)) {
+            return "META";
         }
         return symbol;
     }
