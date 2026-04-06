@@ -56,10 +56,15 @@ def register_jobs():
         replace_existing=True
     )
     
-    # Intraday collection job: runs every 20 seconds (matching collecting.js cron schedule)
+    # Intraday collection job: runs once per minute, only during 08:00-17:59 America/Chicago.
+    # CronTrigger with hour="8-17" ensures the scheduler itself never fires outside the window.
     scheduler.add_job(
         run_intraday_cycle,
-        trigger=IntervalTrigger(seconds=20),
+        trigger=CronTrigger(
+            minute="*",
+            hour="8-17",
+            timezone="America/Chicago",
+        ),
         id="intraday_collection",
         name="Intraday 1-Minute Collection",
         max_instances=1,
@@ -119,7 +124,7 @@ def register_jobs():
 
     logger.info("Scheduled jobs registered:")
     logger.info("  - Quote Collection: every 9 seconds")
-    logger.info("  - Intraday Collection: every 20 seconds")
+    logger.info("  - Intraday Collection: every minute, 08:00-17:59 America/Chicago")
     logger.info("  - AAPL News Ingestion: daily at 08:00")
     logger.info("  - AAPL Company News AI Summary: daily at 08:10")
     logger.info("  - AAPL Quarterly Snapshot: every Monday at 08:05")

@@ -6,12 +6,21 @@ import logging
 from typing import List, Tuple, Optional
 from datetime import datetime
 
+import zoneinfo
+
 from ..config import load_config
 from ..symbols import load_symbols, normalize_table_name
 from ..db import get_db_manager
 from ..twelve_data import TwelveDataClient, TimeSeriesPoint
 
 logger = logging.getLogger(__name__)
+
+# Intraday collection is restricted to this time window (America/Chicago).
+# The scheduler CronTrigger enforces the window at the trigger level;
+# this constant is used for a defensive guard inside the job itself.
+_INTRADAY_TZ = zoneinfo.ZoneInfo("America/Chicago")
+_INTRADAY_START_HOUR = 8   # 08:00 inclusive
+_INTRADAY_END_HOUR = 18    # 18:00 exclusive
 
 
 class IntradayCollector:
@@ -160,11 +169,28 @@ def get_intraday_collector() -> IntradayCollector:
     return _collector
 
 
+def _outside_collection_window() -> bool:
+    """Return True if current America/Chicago time is outside 08:00-18:00."""
+    now = datetime.now(_INTRADAY_TZ)
+    return now.hour < _INTRADAY_START_HOUR or now.hour >= _INTRADAY_END_HOUR
+
+
 def run_intraday_cycle():
     """
     Function to be called by scheduler.
     Runs one intraday collection cycle.
     """
+    # Defensive guard: skip if outside the allowed collection window,
+    # even if the scheduler fires unexpectedly.
+    if _outside_collection_window():
+        now = datetime.now(_INTRADAY_TZ)
+        logger.info(
+            "Intraday collection skipped: current time %s is outside "
+            "the %02d:00-%02d:00 America/Chicago window.",
+            now.strftime("%H:%M %Z"), _INTRADAY_START_HOUR, _INTRADAY_END_HOUR,
+        )
+        return
+
     collector = get_intraday_collector()
     result = collector.run_intraday_cycle()
     
