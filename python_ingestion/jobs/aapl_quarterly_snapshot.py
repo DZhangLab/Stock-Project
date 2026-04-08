@@ -1,5 +1,6 @@
 """
-Apple (AAPL) latest quarterly reporting snapshot ingestion job.
+Quarterly reporting snapshot ingestion job.
+Supports any stock symbol (defaults to AAPL for backward compatibility).
 """
 import argparse
 import json
@@ -15,12 +16,12 @@ from ..db import get_db_manager
 logger = logging.getLogger(__name__)
 
 
-class AppleQuarterlySnapshotCollector:
-    SYMBOL = "AAPL"
+class QuarterlySnapshotCollector:
     SOURCE = "ALPHA_VANTAGE"
     REQUEST_DELAY_SECONDS = 1.3
 
-    def __init__(self):
+    def __init__(self, symbol: str = "AAPL"):
+        self.symbol = symbol.strip().upper()
         self.db = get_db_manager()
         self.api_client = AlphaVantageClient()
 
@@ -162,7 +163,7 @@ class AppleQuarterlySnapshotCollector:
         }
 
         return (
-            self.SYMBOL,
+            self.symbol,
             fiscal_date,
             reported_date,
             self._derive_period_label(fiscal_date),
@@ -213,11 +214,11 @@ class AppleQuarterlySnapshotCollector:
             return 0
 
         try:
-            income_payload = self.api_client.get_income_statement(self.SYMBOL)
+            income_payload = self.api_client.get_income_statement(self.symbol)
             # Free-tier safety: Alpha Vantage allows roughly 1 request/second.
             # This prevents the second call from being sent too quickly.
             time.sleep(self.REQUEST_DELAY_SECONDS)
-            earnings_payload = self.api_client.get_earnings(self.SYMBOL)
+            earnings_payload = self.api_client.get_earnings(self.symbol)
         except ValueError as e:
             logger.error("%s", e)
             return 0
@@ -255,9 +256,9 @@ class AppleQuarterlySnapshotCollector:
             return 0
 
         try:
-            income_payload = self.api_client.get_income_statement(self.SYMBOL)
+            income_payload = self.api_client.get_income_statement(self.symbol)
             time.sleep(self.REQUEST_DELAY_SECONDS)
-            earnings_payload = self.api_client.get_earnings(self.SYMBOL)
+            earnings_payload = self.api_client.get_earnings(self.symbol)
         except ValueError as e:
             logger.error("%s", e)
             return 0
@@ -277,21 +278,22 @@ class AppleQuarterlySnapshotCollector:
             except Exception as e:
                 logger.error("Error persisting snapshot for fiscal_date=%s: %s", params[1], e)
 
-        logger.info("Saved %d quarterly snapshots for %s", saved, self.SYMBOL)
+        logger.info("Saved %d quarterly snapshots for %s", saved, self.symbol)
         return saved
 
 
-def run_aapl_quarterly_snapshot_once() -> int:
-    collector = AppleQuarterlySnapshotCollector()
+def run_aapl_quarterly_snapshot_once(symbol: str = "AAPL") -> int:
+    collector = QuarterlySnapshotCollector(symbol=symbol)
     return collector.collect_recent_snapshots()
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Collect and store AAPL quarterly reporting snapshots")
-    parser.parse_args()
+    parser = argparse.ArgumentParser(description="Collect and store quarterly reporting snapshots")
+    parser.add_argument("--symbol", default="AAPL", help="Stock symbol, default: AAPL")
+    args = parser.parse_args()
 
-    rows = run_aapl_quarterly_snapshot_once()
-    print(f"AAPL quarterly snapshot ingestion complete. Affected rows: {rows}")
+    rows = run_aapl_quarterly_snapshot_once(symbol=args.symbol)
+    print(f"{args.symbol} quarterly snapshot ingestion complete. Affected rows: {rows}")
 
 
 if __name__ == "__main__":
