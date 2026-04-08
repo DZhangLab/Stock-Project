@@ -1,6 +1,6 @@
 """
-AAPL-only earnings call AI analysis job.
-Phase 2 MVP: transcript segmentation + tone signals + LLM structured summary.
+Earnings call AI analysis job.
+Supports any stock symbol (defaults to AAPL for backward compatibility).
 """
 import argparse
 import json
@@ -13,13 +13,12 @@ from ..config import load_config
 from ..db import get_db_manager
 from ..earnings_tone import build_earnings_tone_analyzer, EarningsToneAnalysisError
 from ..openai_responses_client import OpenAIResponsesClient
-from .aapl_earnings_commentary import AppleEarningsCommentaryCollector
+from .aapl_earnings_commentary import EarningsCommentaryCollector
 
 logger = logging.getLogger(__name__)
 
 
-class AppleEarningsAIAnalysisCollector:
-    SYMBOL = "AAPL"
+class EarningsAIAnalysisCollector:
     SOURCE = "ALPHA_VANTAGE"
     PROMPT_VERSION = "earnings_ai_analysis_v3"
     REQUEST_DELAY_SECONDS = 1.3
@@ -29,11 +28,12 @@ class AppleEarningsAIAnalysisCollector:
     MAX_PROMPT_SEGMENTS = 8
     ALLOWED_TONES = {"positive", "mixed", "negative"}
 
-    def __init__(self):
+    def __init__(self, symbol: str = "AAPL"):
+        self.symbol = symbol.strip().upper()
         self.config = load_config()
         self.db = get_db_manager()
         self.ai_client = OpenAIResponsesClient(self.config.ai)
-        self.transcript_collector = AppleEarningsCommentaryCollector()
+        self.transcript_collector = EarningsCommentaryCollector(symbol=self.symbol)
         self.tone_analyzer = build_earnings_tone_analyzer()
 
     def ensure_table(self) -> bool:
@@ -47,16 +47,16 @@ class AppleEarningsAIAnalysisCollector:
         """Fetch transcript for a specific quarter and return context dict."""
         time.sleep(self.REQUEST_DELAY_SECONDS)
         transcript_payload = self.transcript_collector.api_client.get_earnings_call_transcript(
-            self.SYMBOL,
+            self.symbol,
             fiscal_period_label,
         )
         if not isinstance(transcript_payload, dict):
-            logger.warning("Transcript payload is not a dict for %s %s", self.SYMBOL, fiscal_period_label)
+            logger.warning("Transcript payload is not a dict for %s %s", self.symbol, fiscal_period_label)
             return None
 
-        transcript_text = AppleEarningsCommentaryCollector._extract_transcript_text(transcript_payload)
+        transcript_text = EarningsCommentaryCollector._extract_transcript_text(transcript_payload)
         if not transcript_text.strip():
-            logger.warning("Empty transcript for %s %s", self.SYMBOL, fiscal_period_label)
+            logger.warning("Empty transcript for %s %s", self.symbol, fiscal_period_label)
             return None
 
         transcript_url = transcript_payload.get("url")
@@ -72,19 +72,19 @@ class AppleEarningsAIAnalysisCollector:
         }
 
     def _load_latest_transcript_context(self) -> Optional[Dict[str, Any]]:
-        earnings_payload = self.transcript_collector.api_client.get_earnings(self.SYMBOL)
-        latest = AppleEarningsCommentaryCollector._latest_earnings_row(earnings_payload)
+        earnings_payload = self.transcript_collector.api_client.get_earnings(self.symbol)
+        latest = EarningsCommentaryCollector._latest_earnings_row(earnings_payload)
         if latest is None:
-            logger.warning("No quarterly earnings row found for %s", self.SYMBOL)
+            logger.warning("No quarterly earnings row found for %s", self.symbol)
             return None
 
-        fiscal_date = AppleEarningsCommentaryCollector._parse_date(latest.get("fiscalDateEnding"))
+        fiscal_date = EarningsCommentaryCollector._parse_date(latest.get("fiscalDateEnding"))
         if fiscal_date is None:
-            logger.warning("Invalid fiscalDateEnding in latest earnings row for %s", self.SYMBOL)
+            logger.warning("Invalid fiscalDateEnding in latest earnings row for %s", self.symbol)
             return None
 
-        fiscal_period_label = AppleEarningsCommentaryCollector._derive_period_label(fiscal_date)
-        call_date = AppleEarningsCommentaryCollector._parse_date(latest.get("reportedDate"))
+        fiscal_period_label = EarningsCommentaryCollector._derive_period_label(fiscal_date)
+        call_date = EarningsCommentaryCollector._parse_date(latest.get("reportedDate"))
         return self._load_transcript_context_for_quarter(fiscal_period_label, call_date)
 
     @staticmethod
@@ -152,7 +152,7 @@ class AppleEarningsAIAnalysisCollector:
     ) -> Tuple[str, str]:
         instructions = (
             "You are a financial earnings-call summary assistant. "
-            "Use the transcript evidence and FinBERT signal ranking to produce a clean, factual summary of the latest AAPL earnings call. "
+            "Use the transcript evidence and FinBERT signal ranking to produce a clean, factual summary of the latest " + self.symbol + " earnings call. "
             "Keep the answer grounded in the supplied evidence only and return valid JSON matching the schema exactly. "
             "Use concise, readable bullets with complete thoughts. "
             "Prefer factual summary over interpretation, and avoid analyst-style phrasing. "
@@ -183,7 +183,7 @@ class AppleEarningsAIAnalysisCollector:
                 )
 
         payload = {
-            "symbol": self.SYMBOL,
+            "symbol": self.symbol,
             "fiscalPeriodLabel": fiscal_period_label,
             "callDate": None if call_date is None else call_date.isoformat(),
             "requiredOutputFields": [
@@ -275,7 +275,7 @@ class AppleEarningsAIAnalysisCollector:
         raw_transcript_payload: Dict[str, Any],
     ) -> Tuple:
         return (
-            self.SYMBOL,
+            self.symbol,
             fiscal_period_label,
             call_date,
             self.SOURCE,
@@ -344,7 +344,7 @@ class AppleEarningsAIAnalysisCollector:
             logger.error("%s", e)
             return 0
         except Exception as e:
-            logger.error("Error collecting AAPL earnings AI analysis: %s", e)
+            logger.error("Error collecting %s earnings AI analysis: %s", self.symbol, e)
             return 0
 
 
@@ -395,7 +395,8 @@ class AppleEarningsAIAnalysisCollector:
         )
         self.persist_analysis(params)
         logger.info(
-            "Saved AAPL earnings AI analysis: period=%s tone=%s",
+            "Saved %s earnings AI analysis: period=%s tone=%s",
+            self.symbol,
             context["fiscalPeriodLabel"], structured_output["overallTone"],
         )
         return True
@@ -407,27 +408,27 @@ class AppleEarningsAIAnalysisCollector:
             return 0
 
         try:
-            earnings_payload = self.transcript_collector.api_client.get_earnings(self.SYMBOL)
+            earnings_payload = self.transcript_collector.api_client.get_earnings(self.symbol)
         except (ValueError, Exception) as e:
             logger.error("Error fetching earnings data: %s", e)
             return 0
 
-        rows = AppleEarningsCommentaryCollector._recent_earnings_rows(earnings_payload, max_quarters)
+        rows = EarningsCommentaryCollector._recent_earnings_rows(earnings_payload, max_quarters)
         if not rows:
-            logger.warning("No quarterly earnings rows found for %s", self.SYMBOL)
+            logger.warning("No quarterly earnings rows found for %s", self.symbol)
             return 0
 
         saved = 0
         for row in rows:
-            fiscal_date = AppleEarningsCommentaryCollector._parse_date(row.get("fiscalDateEnding"))
+            fiscal_date = EarningsCommentaryCollector._parse_date(row.get("fiscalDateEnding"))
             if fiscal_date is None:
                 continue
 
-            fiscal_period_label = AppleEarningsCommentaryCollector._derive_period_label(fiscal_date)
-            call_date = AppleEarningsCommentaryCollector._parse_date(row.get("reportedDate"))
+            fiscal_period_label = EarningsCommentaryCollector._derive_period_label(fiscal_date)
+            call_date = EarningsCommentaryCollector._parse_date(row.get("reportedDate"))
 
-            if self.db.has_valid_earnings_ai_analysis(self.SYMBOL, fiscal_period_label):
-                logger.debug("Skipping %s %s — valid AI analysis already exists", self.SYMBOL, fiscal_period_label)
+            if self.db.has_valid_earnings_ai_analysis(self.symbol, fiscal_period_label):
+                logger.debug("Skipping %s %s — valid AI analysis already exists", self.symbol, fiscal_period_label)
                 continue
 
             try:
@@ -443,22 +444,23 @@ class AppleEarningsAIAnalysisCollector:
             except Exception as e:
                 logger.error("Error analyzing %s: %s", fiscal_period_label, e)
 
-        logger.info("Saved %d AI analyses for %s", saved, self.SYMBOL)
+        logger.info("Saved %d AI analyses for %s", saved, self.symbol)
         return saved
 
 
-def run_aapl_earnings_ai_analysis_once() -> int:
-    collector = AppleEarningsAIAnalysisCollector()
+def run_aapl_earnings_ai_analysis_once(symbol: str = "AAPL") -> int:
+    collector = EarningsAIAnalysisCollector(symbol=symbol)
     return collector.collect_recent_analyses()
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Collect AAPL earnings call transcripts and store AI earnings analyses"
+        description="Collect earnings call transcripts and store AI earnings analyses"
     )
-    parser.parse_args()
-    rows = run_aapl_earnings_ai_analysis_once()
-    print(f"AAPL earnings AI analysis complete. Affected rows: {rows}")
+    parser.add_argument("--symbol", default="AAPL", help="Stock symbol, default: AAPL")
+    args = parser.parse_args()
+    rows = run_aapl_earnings_ai_analysis_once(symbol=args.symbol)
+    print(f"{args.symbol} earnings AI analysis complete. Affected rows: {rows}")
 
 
 if __name__ == "__main__":

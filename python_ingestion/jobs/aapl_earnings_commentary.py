@@ -480,9 +480,6 @@ class EarningsCommentaryCollector:
         return saved
 
 
-# Backward-compatible alias for external imports (e.g. aapl_earnings_ai_analysis.py)
-AppleEarningsCommentaryCollector = EarningsCommentaryCollector
-
 
 def run_aapl_earnings_commentary_once(symbol: str = "AAPL") -> int:
     collector = EarningsCommentaryCollector(symbol=symbol)
