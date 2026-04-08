@@ -22,8 +22,9 @@ public class CompanyNewsServiceImpl implements CompanyNewsService {
     }
 
     @Override
-    public List<CompanyNews> getRecentAppleNews() {
-        return companyNewsRepository.findTop20BySymbolOrderByPublishedAtDesc("AAPL");
+    public List<CompanyNews> getRecentNews(String symbol) {
+        return companyNewsRepository.findTop20BySymbolOrderByPublishedAtDesc(
+                symbol != null ? symbol.trim().toUpperCase() : "AAPL");
     }
 
     @Override

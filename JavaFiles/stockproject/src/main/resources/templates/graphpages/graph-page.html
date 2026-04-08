@@ -219,7 +219,7 @@
         <div id="chartContainer" style="height: 420px; width: 100%; position: relative;"></div>
     </div>
 
-    <div th:if="${showAppleNews}" style="margin-top: 30px;">
+    <div th:if="${showNews}" style="margin-top: 30px;">
         <h3>AI News Summary</h3>
         <div class="panel panel-default news-ai-card" style="margin-bottom: 24px;">
             <div class="panel-body">
@@ -321,13 +321,13 @@
 
         <h3 th:text="${symbol} + ' News'">Company News</h3>
 
-        <div th:if="${appleNews == null || #lists.isEmpty(appleNews)}" class="alert alert-info">
+        <div th:if="${companyNews == null || #lists.isEmpty(companyNews)}" class="alert alert-info">
             No news found for <span th:text="${symbol}">this symbol</span> yet.
         </div>
 
-        <div th:if="${appleNews != null && !#lists.isEmpty(appleNews)}" id="newsListContainer">
+        <div th:if="${companyNews != null && !#lists.isEmpty(companyNews)}" id="newsListContainer">
             <div class="list-group" id="newsList">
-                <div class="list-group-item" th:each="news, stat : ${appleNews}"
+                <div class="list-group-item" th:each="news, stat : ${companyNews}"
                      th:attr="data-news-index=${stat.index}">
                     <h4 class="list-group-item-heading">
                         <a th:href="${news.url}" th:text="${news.title}" target="_blank" rel="noopener noreferrer">News title</a>

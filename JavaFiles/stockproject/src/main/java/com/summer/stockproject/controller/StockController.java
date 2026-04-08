@@ -403,8 +403,8 @@ public class StockController {
     private void addNewsAttributes(Model model, String displaySymbol,
                                     String normalizedSymbol,
                                     String rangeStartDate, String rangeEndDate) {
-        model.addAttribute("showAppleNews", true);
-        model.addAttribute("appleNews",
+        model.addAttribute("showNews", true);
+        model.addAttribute("companyNews",
                 companyNewsService.getNewsBySymbolAndDateRange(
                         displaySymbol, rangeStartDate, rangeEndDate));
     }
@@ -421,7 +421,7 @@ public class StockController {
         model.addAttribute("activeRange", range);
         model.addAttribute("rangeStartDate", "");
         model.addAttribute("rangeEndDate", "");
-        model.addAttribute("showAppleNews", false);
+        model.addAttribute("showNews", false);
     }
 
     /**

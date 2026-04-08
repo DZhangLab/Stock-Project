@@ -5,7 +5,7 @@ import com.summer.stockproject.entity.CompanyNews;
 import java.util.List;
 
 public interface CompanyNewsService {
-    List<CompanyNews> getRecentAppleNews();
+    List<CompanyNews> getRecentNews(String symbol);
 
     /**
      * Return up to 20 news items for the given symbol whose published_at
