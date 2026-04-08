@@ -403,13 +403,10 @@ public class StockController {
     private void addNewsAttributes(Model model, String displaySymbol,
                                     String normalizedSymbol,
                                     String rangeStartDate, String rangeEndDate) {
-        boolean showNews = normalizedSymbol.equals("AAPL");
-        model.addAttribute("showAppleNews", showNews);
-        if (showNews) {
-            model.addAttribute("appleNews",
-                    companyNewsService.getNewsBySymbolAndDateRange(
-                            displaySymbol, rangeStartDate, rangeEndDate));
-        }
+        model.addAttribute("showAppleNews", true);
+        model.addAttribute("appleNews",
+                companyNewsService.getNewsBySymbolAndDateRange(
+                        displaySymbol, rangeStartDate, rangeEndDate));
     }
 
     private void setEmptyModel(Model model, String symbol, String range, String granularity) {

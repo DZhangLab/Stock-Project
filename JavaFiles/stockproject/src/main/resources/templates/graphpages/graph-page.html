@@ -319,10 +319,10 @@
             </div>
         </div>
 
-        <h3>Apple News (AAPL)</h3>
+        <h3 th:text="${symbol} + ' News'">Company News</h3>
 
         <div th:if="${appleNews == null || #lists.isEmpty(appleNews)}" class="alert alert-info">
-            No Apple news found yet. Please run manual ingestion.
+            No news found for <span th:text="${symbol}">this symbol</span> yet.
         </div>
 
         <div th:if="${appleNews != null && !#lists.isEmpty(appleNews)}" id="newsListContainer">
@@ -431,7 +431,7 @@ function shortSummary(value) {
 </script>
 <script type="text/javascript">
 (function() {
-    if (!symbol || symbol.toUpperCase() !== "AAPL") {
+    if (!symbol) {
         return;
     }
 
@@ -583,7 +583,7 @@ function shortSummary(value) {
 </script>
 <script type="text/javascript">
 (function() {
-    if (!symbol || symbol.toUpperCase() !== "AAPL") {
+    if (!symbol) {
         return;
     }
 
@@ -721,8 +721,8 @@ function shortSummary(value) {
     }
 
     function loadQuarter(period) {
-        var aiUrl = "/api/financials/earnings-ai?symbol=AAPL&period=" + encodeURIComponent(period);
-        var commentaryUrl = "/api/financials/earnings?symbol=AAPL&period=" + encodeURIComponent(period);
+        var aiUrl = "/api/financials/earnings-ai?symbol=" + encodeURIComponent(symbol) + "&period=" + encodeURIComponent(period);
+        var commentaryUrl = "/api/financials/earnings?symbol=" + encodeURIComponent(symbol) + "&period=" + encodeURIComponent(period);
 
         var aiPromise = fetch(aiUrl).then(function(r) {
             if (!r.ok) { throw new Error("not found"); }
@@ -750,7 +750,7 @@ function shortSummary(value) {
 
     var selectEl = document.getElementById("earningsQuarterSelect");
 
-    fetch("/api/financials/earnings-ai/periods?symbol=AAPL")
+    fetch("/api/financials/earnings-ai/periods?symbol=" + encodeURIComponent(symbol))
         .then(function(response) { return response.json(); })
         .then(function(data) {
             var periods = data.periods || [];
@@ -782,7 +782,7 @@ function shortSummary(value) {
 </script>
 <script type="text/javascript">
 (function() {
-    if (!symbol || symbol.toUpperCase() !== "AAPL") {
+    if (!symbol) {
         return;
     }
 
@@ -874,7 +874,7 @@ function shortSummary(value) {
         }
     }
 
-    fetch("/api/financials/quarterly/recent?symbol=AAPL")
+    fetch("/api/financials/quarterly/recent?symbol=" + encodeURIComponent(symbol))
         .then(function(response) {
             if (!response.ok) { throw new Error("no recent snapshots"); }
             return response.json();
