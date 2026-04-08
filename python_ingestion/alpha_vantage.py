@@ -1,5 +1,5 @@
 """
-Alpha Vantage API client for Apple news ingestion.
+Alpha Vantage API client for news and financial data ingestion.
 """
 import logging
 from dataclasses import dataclass
@@ -43,21 +43,6 @@ class AlphaVantageClient:
             return float(value)
         except (TypeError, ValueError):
             return None
-
-    @staticmethod
-    def _contains_apple_title_text(title: str) -> bool:
-        text = title.lower()
-        keywords = [
-            "apple",
-            "aapl",
-            "iphone",
-            "ipad",
-            "mac",
-            "ios",
-            "tim cook",
-            "apple inc",
-        ]
-        return any(keyword in text for keyword in keywords)
 
     @staticmethod
     def _contains_etf_style_title_text(title: str) -> bool:
@@ -173,10 +158,9 @@ class AlphaVantageClient:
         feed = data.get("feed", [])
         result: List[AlphaVantageNewsItem] = []
 
-        structured_and_text_kept = 0
-        dropped_missing_aapl_match = 0
-        dropped_missing_apple_text = 0
-        dropped_etf_style_title = 0
+        kept = 0
+        dropped_no_ticker_match = 0
+        dropped_etf_style = 0
 
         for raw in feed:
             if not isinstance(raw, Dict):
@@ -191,24 +175,18 @@ class AlphaVantageClient:
             summary = str(raw.get("summary", "")).strip()
             source = str(raw.get("source", "")).strip()
             raw_ticker_match, relevance_score = self._extract_ticker_relevance(raw, ticker)
-            apple_title_match = self._contains_apple_title_text(title)
-            etf_style_title_match = self._contains_etf_style_title_text(title)
 
-            # Strict rule for Apple-focused MVP:
-            # Keep only if BOTH are true:
-            # 1) structured ticker relevance explicitly contains AAPL
-            # 2) title contains Apple-focused keywords
+            # Require structured ticker relevance from Alpha Vantage
             if not raw_ticker_match:
-                dropped_missing_aapl_match += 1
+                dropped_no_ticker_match += 1
                 continue
 
-            if not apple_title_match:
-                if etf_style_title_match:
-                    dropped_etf_style_title += 1
-                dropped_missing_apple_text += 1
+            # Drop generic ETF/watchlist/portfolio articles
+            if self._contains_etf_style_title_text(title):
+                dropped_etf_style += 1
                 continue
 
-            structured_and_text_kept += 1
+            kept += 1
 
             result.append(
                 AlphaVantageNewsItem(
@@ -229,11 +207,11 @@ class AlphaVantageClient:
                 break
 
         logger.info(
-            "AAPL relevance filtering: kept=%s (structured+aapl_title), dropped_missing_aapl_match=%s, dropped_missing_apple_title=%s, dropped_etf_style_title=%s, raw_feed=%s",
+            "%s news filtering: kept=%s, dropped_no_ticker_match=%s, dropped_etf_style=%s, raw_feed=%s",
+            ticker,
             len(result),
-            dropped_missing_aapl_match,
-            dropped_missing_apple_text,
-            dropped_etf_style_title,
+            dropped_no_ticker_match,
+            dropped_etf_style,
             len(feed),
         )
         return result

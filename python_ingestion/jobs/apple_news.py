@@ -1,6 +1,6 @@
 """
-Apple (AAPL) company news ingestion job.
-Phase 1 MVP scope: database + Python ingestion only.
+Company news ingestion job.
+Supports any stock symbol (defaults to AAPL for backward compatibility).
 """
 import argparse
 import hashlib
@@ -14,12 +14,11 @@ from ..db import get_db_manager
 logger = logging.getLogger(__name__)
 
 
-class AppleNewsCollector:
-    """Collects and persists AAPL company news."""
+class CompanyNewsCollector:
+    """Collects and persists company news for a given symbol."""
 
-    SYMBOL = "AAPL"
-
-    def __init__(self):
+    def __init__(self, symbol: str = "AAPL"):
+        self.symbol = symbol.strip().upper()
         self.db = get_db_manager()
         self.api_client = AlphaVantageClient()
 
@@ -78,7 +77,7 @@ class AppleNewsCollector:
 
             params_list.append(
                 (
-                    self.SYMBOL,
+                    self.symbol,
                     item.title[:512],
                     item.summary or None,
                     normalized_url,
@@ -121,25 +120,26 @@ class AppleNewsCollector:
         try:
             affected_rows = self.db.executemany(insert_sql, params_list)
             logger.info(
-                "Apple news persisted: %s rows attempted, %s rows affected",
+                "%s news persisted: %s rows attempted, %s rows affected",
+                self.symbol,
                 len(params_list),
                 affected_rows
             )
             return affected_rows
         except Exception as e:
-            logger.error("Error persisting Apple news: %s", e)
+            logger.error("Error persisting %s news: %s", self.symbol, e)
             return 0
 
     def collect_news(self, limit: int = 20) -> int:
-        """Collect and persist Apple news."""
+        """Collect and persist company news for the configured symbol."""
         if not self.ensure_table():
             logger.error("Failed to ensure company_news table")
             return 0
 
         try:
-            items = self.api_client.get_news_sentiment(self.SYMBOL, limit=limit)
+            items = self.api_client.get_news_sentiment(self.symbol, limit=limit)
             if not items:
-                logger.warning("No Apple news returned from API")
+                logger.warning("No news returned from API for %s", self.symbol)
                 return 0
 
             return self.persist_news(items)
@@ -147,24 +147,25 @@ class AppleNewsCollector:
             logger.error("%s", e)
             return 0
         except Exception as e:
-            logger.error("Error collecting Apple news: %s", e)
+            logger.error("Error collecting %s news: %s", self.symbol, e)
             return 0
 
 
-def run_apple_news_once(limit: int = 20) -> int:
-    """Manual entry function for one-time Apple news ingestion."""
-    collector = AppleNewsCollector()
+def run_apple_news_once(symbol: str = "AAPL", limit: int = 20) -> int:
+    """Entry function for one-time company news ingestion."""
+    collector = CompanyNewsCollector(symbol=symbol)
     return collector.collect_news(limit=limit)
 
 
 def main():
-    """CLI entry point for manual Apple news ingestion."""
-    parser = argparse.ArgumentParser(description="Collect and store AAPL company news")
+    """CLI entry point for manual company news ingestion."""
+    parser = argparse.ArgumentParser(description="Collect and store company news")
+    parser.add_argument("--symbol", default="AAPL", help="Stock symbol, default: AAPL")
     parser.add_argument("--limit", type=int, default=20, help="Maximum number of news items to fetch")
     args = parser.parse_args()
 
-    rows = run_apple_news_once(limit=args.limit)
-    print(f"Apple news ingestion complete. Affected rows: {rows}")
+    rows = run_apple_news_once(symbol=args.symbol, limit=args.limit)
+    print(f"{args.symbol} news ingestion complete. Affected rows: {rows}")
 
 
 if __name__ == "__main__":
