@@ -209,16 +209,6 @@ The platform is functional for its core use case: collecting, storing, and visua
 - **The web frontend** renders interactive candlestick charts with overlaid news, AI summaries, quarterly financials, and earnings analysis for any symbol that has data in the database.
 - **AI analysis** uses OpenAI for structured news and earnings summaries, and FinBERT for earnings call tone classification.
 
-## Future Improvements
-
-- Extend the scheduler to run news, earnings, and AI analysis jobs across multiple symbols
-- Add an `ACTIVE_SYMBOLS` configuration to control which symbols receive full analysis
-- Improve frontend UI/UX beyond the current Bootstrap 3 layout
-- Add additional chart indicators and overlays (volume, moving averages)
-- Expand company fundamentals coverage (balance sheet, cash flow)
-- Add automated testing for ingestion jobs and backend services
-- Containerize the application stack for easier deployment
-
 ## Notes
 
 - **API rate limits**: Twelve Data and Alpha Vantage free tiers have daily and per-minute rate limits. The scheduler is configured with staggered job timing and delays between API calls to stay within these limits. Heavy multi-symbol usage may require premium API plans.
