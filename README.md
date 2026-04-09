@@ -4,7 +4,7 @@ A multi-layer stock data platform that collects, stores, and visualizes market d
 
 ## Project Overview
 
-This project goes beyond basic stock price visualization. It combines real-time and historical market data with financial reporting data, company news, and AI-powered analysis to provide a consolidated view of individual stocks. The platform is structured as four independent layers that communicate through a shared MySQL database, making each layer independently runnable and testable.
+This project combines real-time and historical market data with financial reporting data, company news, and AI-powered analysis to provide a consolidated view of individual stocks. The platform is structured as four independent layers that communicate through a shared MySQL database, making each layer independently runnable and testable.
 
 The system currently tracks over 500 S&P 500 constituents for price data and supports per-symbol company news, quarterly financial snapshots, earnings call commentary, and AI-generated analysis.
 
