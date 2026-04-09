@@ -2,6 +2,7 @@
 Alpha Vantage API client for news and financial data ingestion.
 """
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -44,6 +45,11 @@ class AlphaVantageClient:
         except (TypeError, ValueError):
             return None
 
+    # Minimum Alpha Vantage relevance_score to keep an article.
+    # AV scores range 0.0–1.0; articles where the target ticker is only
+    # tangentially mentioned typically score below 0.15.
+    MIN_RELEVANCE_SCORE = 0.15
+
     @staticmethod
     def _contains_etf_style_title_text(title: str) -> bool:
         text = title.lower()
@@ -58,6 +64,68 @@ class AlphaVantageClient:
             "buy sell or hold",
         ]
         return any(keyword in text for keyword in etf_style_keywords)
+
+    @staticmethod
+    def _contains_generic_roundup_title(title: str) -> bool:
+        """Detect generic market-roundup / multi-stock titles."""
+        text = title.lower()
+        roundup_phrases = [
+            "what you need to know",
+            "what investors need to know",
+            "stocks surged",
+            "stocks plunged",
+            "stocks skyrocket",
+            "market movers",
+            "morning commentary",
+            "price target roundup",
+            "price today,",
+            "shares skyrocket",
+        ]
+        return any(phrase in text for phrase in roundup_phrases)
+
+    # Known share-class aliases (map variant → canonical).
+    # Both directions are checked so GOOGL target accepts $GOOG and vice versa.
+    _SHARE_CLASS_ALIASES: Dict[str, str] = {
+        "GOOG": "GOOGL",
+        "GOOGL": "GOOG",
+        "BRK.A": "BRK.B",
+        "BRK.B": "BRK.A",
+    }
+
+    @classmethod
+    def _ticker_matches_target(cls, tick: str, target: str) -> bool:
+        """Return True if *tick* is the same company as *target* (including share-class aliases)."""
+        t = tick.upper()
+        if t == target:
+            return True
+        return cls._SHARE_CLASS_ALIASES.get(target, "") == t
+
+    @classmethod
+    def _title_features_different_ticker(cls, title: str, target_ticker: str) -> bool:
+        """Return True when the title prominently names a *different* stock ticker.
+
+        Pattern: "CompanyName Stock (OTHER)" or "$OTHER" in the title where
+        OTHER != target_ticker.  This catches articles like
+        "HCA Healthcare Inc Stock (HCA) Closed Up" that AV tags with AAPL
+        only because Apple is mentioned in the body or ticker_sentiment list.
+        """
+        target = target_ticker.upper()
+
+        # Match "Stock (TICK)" or "Shares (TICK)" pattern
+        stock_paren = re.findall(r'(?:stock|shares)\s*\(([A-Z]{1,5})\)', title, re.IGNORECASE)
+        for tick in stock_paren:
+            if not cls._ticker_matches_target(tick, target):
+                return True
+
+        # Match "$TICK" cashtag pattern — only flag if target cashtag is absent
+        cashtags = re.findall(r'\$([A-Z]{1,5})\b', title)
+        if cashtags:
+            has_target = any(cls._ticker_matches_target(t, target) for t in cashtags)
+            has_other = any(not cls._ticker_matches_target(t, target) for t in cashtags)
+            if has_other and not has_target:
+                return True
+
+        return False
 
     def _extract_ticker_relevance(self, raw: Dict[str, Any], ticker: str) -> Tuple[bool, Optional[float]]:
         ticker_sentiment = raw.get("ticker_sentiment", [])
@@ -158,9 +226,11 @@ class AlphaVantageClient:
         feed = data.get("feed", [])
         result: List[AlphaVantageNewsItem] = []
 
-        kept = 0
         dropped_no_ticker_match = 0
+        dropped_low_relevance = 0
         dropped_etf_style = 0
+        dropped_roundup = 0
+        dropped_other_ticker = 0
 
         for raw in feed:
             if not isinstance(raw, Dict):
@@ -176,17 +246,30 @@ class AlphaVantageClient:
             source = str(raw.get("source", "")).strip()
             raw_ticker_match, relevance_score = self._extract_ticker_relevance(raw, ticker)
 
-            # Require structured ticker relevance from Alpha Vantage
+            # 1. Require structured ticker relevance from Alpha Vantage
             if not raw_ticker_match:
                 dropped_no_ticker_match += 1
                 continue
 
-            # Drop generic ETF/watchlist/portfolio articles
+            # 2. Require minimum relevance score
+            if relevance_score is not None and relevance_score < self.MIN_RELEVANCE_SCORE:
+                dropped_low_relevance += 1
+                continue
+
+            # 3. Drop generic ETF/watchlist/portfolio articles
             if self._contains_etf_style_title_text(title):
                 dropped_etf_style += 1
                 continue
 
-            kept += 1
+            # 4. Drop generic roundup / multi-stock articles
+            if self._contains_generic_roundup_title(title):
+                dropped_roundup += 1
+                continue
+
+            # 5. Drop articles whose title prominently features a different ticker
+            if self._title_features_different_ticker(title, ticker):
+                dropped_other_ticker += 1
+                continue
 
             result.append(
                 AlphaVantageNewsItem(
@@ -207,11 +290,15 @@ class AlphaVantageClient:
                 break
 
         logger.info(
-            "%s news filtering: kept=%s, dropped_no_ticker_match=%s, dropped_etf_style=%s, raw_feed=%s",
+            "%s news filtering: kept=%d, dropped_no_ticker=%d, dropped_low_relevance=%d, "
+            "dropped_etf=%d, dropped_roundup=%d, dropped_other_ticker=%d, raw_feed=%d",
             ticker,
             len(result),
             dropped_no_ticker_match,
+            dropped_low_relevance,
             dropped_etf_style,
+            dropped_roundup,
+            dropped_other_ticker,
             len(feed),
         )
         return result
