@@ -92,6 +92,37 @@ class AlphaVantageClient:
         "BRK.B": "BRK.A",
     }
 
+    # Company name aliases used to detect primary-subject presence in titles.
+    # Keys are uppercase tickers; values are lowercase names to match.
+    _COMPANY_NAME_ALIASES: Dict[str, List[str]] = {
+        "AAPL": ["apple"],
+        "GOOGL": ["google", "alphabet"],
+        "GOOG": ["google", "alphabet"],
+        "MSFT": ["microsoft"],
+        "AMZN": ["amazon"],
+        "META": ["meta platforms", "facebook"],
+        "TSLA": ["tesla"],
+        "NVDA": ["nvidia"],
+        "NFLX": ["netflix"],
+        "BRK.A": ["berkshire"],
+        "BRK.B": ["berkshire"],
+    }
+
+    # Patterns in titles that indicate the target company is a secondary party,
+    # not the primary subject.  The placeholder {} is replaced with the company
+    # name/ticker at match time.
+    _SECONDARY_MENTION_PATTERNS: List[str] = [
+        r"\bwith\s+{}",
+        r"\bbacked\s+by\s+{}",
+        r"\bpowered\s+by\s+{}",
+        r"\bdeal\s+with\s+{}",
+        r"\bpartnership\s+with\s+{}",
+        r"\bpartner(?:s|ing)?\s+with\s+{}",
+        r"\bcontract\s+with\s+{}",
+        r"\blease[sd]?\s+(?:from|to|with)\s+{}",
+        r"\busing\s+{}",
+    ]
+
     @classmethod
     def _ticker_matches_target(cls, tick: str, target: str) -> bool:
         """Return True if *tick* is the same company as *target* (including share-class aliases)."""
@@ -111,9 +142,11 @@ class AlphaVantageClient:
         """
         target = target_ticker.upper()
 
-        # Match "Stock (TICK)" or "Shares (TICK)" pattern
-        stock_paren = re.findall(r'(?:stock|shares)\s*\(([A-Z]{1,5})\)', title, re.IGNORECASE)
-        for tick in stock_paren:
+        # Match "(TICK)" pattern — a parenthesized all-caps ticker in the title
+        # typically identifies the article's primary subject.  Only flag when
+        # the ticker belongs to a *different* company.
+        paren_tickers = re.findall(r'\(([A-Z]{1,5})\)', title)
+        for tick in paren_tickers:
             if not cls._ticker_matches_target(tick, target):
                 return True
 
@@ -126,6 +159,94 @@ class AlphaVantageClient:
                 return True
 
         return False
+
+    @classmethod
+    def _get_company_names(cls, ticker: str) -> List[str]:
+        """Return lowercase company names/aliases for a ticker, plus the ticker itself."""
+        target = ticker.upper()
+        names = list(cls._COMPANY_NAME_ALIASES.get(target, []))
+        # Always include the ticker itself (lowercase for matching)
+        names.append(target.lower())
+        # Include share-class alias ticker if present
+        alias_tick = cls._SHARE_CLASS_ALIASES.get(target)
+        if alias_tick:
+            names.append(alias_tick.lower())
+        return names
+
+    @classmethod
+    def _title_mentions_company(cls, title: str, ticker: str) -> bool:
+        """Return True if the title explicitly contains the target company name or ticker."""
+        text = title.lower()
+        for name in cls._get_company_names(ticker):
+            if name in text:
+                return True
+        return False
+
+    @classmethod
+    def _is_secondary_mention(cls, title: str, ticker: str) -> bool:
+        """Return True when the target company appears only as a secondary party in the title.
+
+        Checks whether the company name appears exclusively inside a
+        "with X" / "backed by X" / "deal with X" style phrase, suggesting
+        the article is about *another* entity's relationship with the target.
+        """
+        text = title.lower()
+        names = cls._get_company_names(ticker)
+
+        for name in names:
+            for pat_template in cls._SECONDARY_MENTION_PATTERNS:
+                pattern = pat_template.format(re.escape(name))
+                if re.search(pattern, text, re.IGNORECASE):
+                    return True
+        return False
+
+    def _target_has_highest_relevance(self, raw: Dict[str, Any], ticker: str) -> bool:
+        """Return True if the target ticker has the highest relevance_score among all tickers."""
+        ticker_sentiment = raw.get("ticker_sentiment", [])
+        if not isinstance(ticker_sentiment, list):
+            return False
+
+        target = ticker.upper()
+        target_score: Optional[float] = None
+        max_other_score: Optional[float] = None
+
+        for row in ticker_sentiment:
+            if not isinstance(row, Dict):
+                continue
+            symbol = str(row.get("ticker", "")).upper().strip()
+            score = self._safe_float(row.get("relevance_score"))
+            if score is None:
+                continue
+
+            if self._ticker_matches_target(symbol, target):
+                if target_score is None or score > target_score:
+                    target_score = score
+            else:
+                if max_other_score is None or score > max_other_score:
+                    max_other_score = score
+
+        if target_score is None:
+            return False
+        if max_other_score is None:
+            return True
+        return target_score >= max_other_score
+
+    def _is_primary_subject(self, raw: Dict[str, Any], title: str, ticker: str) -> bool:
+        """Determine if the target company is the primary subject of the article.
+
+        The target must have the highest (or tied-for-highest) relevance_score
+        among all tickers in the article.  Title mention alone is not sufficient
+        because the company name can appear as context for another company's story
+        (e.g. "Hut 8 surges on Google data-center lease").
+        """
+        highest_relevance = self._target_has_highest_relevance(raw, ticker)
+
+        # Secondary-mention pattern ("with X", "backed by X") and not highest → drop
+        if self._is_secondary_mention(title, ticker) and not highest_relevance:
+            return False
+
+        # The core gate: the target ticker must have the highest relevance score
+        return highest_relevance
 
     def _extract_ticker_relevance(self, raw: Dict[str, Any], ticker: str) -> Tuple[bool, Optional[float]]:
         ticker_sentiment = raw.get("ticker_sentiment", [])
@@ -231,6 +352,8 @@ class AlphaVantageClient:
         dropped_etf_style = 0
         dropped_roundup = 0
         dropped_other_ticker = 0
+        dropped_secondary_mention = 0
+        kept_primary_subject = 0
 
         for raw in feed:
             if not isinstance(raw, Dict):
@@ -271,6 +394,13 @@ class AlphaVantageClient:
                 dropped_other_ticker += 1
                 continue
 
+            # 6. Primary-subject filter: keep only when the target company
+            #    is the main subject, not merely a secondary participant.
+            if not self._is_primary_subject(raw, title, ticker):
+                dropped_secondary_mention += 1
+                continue
+            kept_primary_subject += 1
+
             result.append(
                 AlphaVantageNewsItem(
                     symbol=ticker,
@@ -291,7 +421,8 @@ class AlphaVantageClient:
 
         logger.info(
             "%s news filtering: kept=%d, dropped_no_ticker=%d, dropped_low_relevance=%d, "
-            "dropped_etf=%d, dropped_roundup=%d, dropped_other_ticker=%d, raw_feed=%d",
+            "dropped_etf=%d, dropped_roundup=%d, dropped_other_ticker=%d, "
+            "dropped_secondary_mention=%d, kept_primary_subject=%d, raw_feed=%d",
             ticker,
             len(result),
             dropped_no_ticker_match,
@@ -299,6 +430,8 @@ class AlphaVantageClient:
             dropped_etf_style,
             dropped_roundup,
             dropped_other_ticker,
+            dropped_secondary_mention,
+            kept_primary_subject,
             len(feed),
         )
         return result
