@@ -7,6 +7,7 @@ import com.summer.stockproject.helperfunction.StockChartData;
 import com.summer.stockproject.service.CompanyNewsService;
 import com.summer.stockproject.service.DailyQuoteService;
 import com.summer.stockproject.service.IntradayBarService;
+import com.summer.stockproject.util.SymbolNormalizer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -59,22 +60,11 @@ public class StockController {
             @RequestParam(required = false) String range,
             Model model) throws ParseException {
 
-        String displaySymbol = symbol.toUpperCase();
-
-        // Normalize for intraday table names (BRK.B -> BRKB, handle reserved words)
-        String normalizedSymbol = displaySymbol.replace(".", "").replace("/", "");
-        if (normalizedSymbol.equals("NOW")) {
-            normalizedSymbol = "NOW1";
-        } else if (normalizedSymbol.equals("ALL")) {
-            normalizedSymbol = "ALL1";
-        } else if (normalizedSymbol.equals("KEYS")) {
-            normalizedSymbol = "KEYS1";
-        } else if (normalizedSymbol.equals("KEY")) {
-            normalizedSymbol = "KEY1";
-        } else if (normalizedSymbol.equals("FB")) {
-            normalizedSymbol = "META";
-            displaySymbol = "META";
-        }
+        // Normalize for intraday table names (BRK.B -> BRKB, handle reserved words, FB -> META).
+        // Delegates to the shared utility used by IntradayBarServiceImpl.
+        SymbolNormalizer.NormalizedSymbol normalized = SymbolNormalizer.normalize(symbol);
+        String displaySymbol = normalized.displaySymbol;
+        String normalizedSymbol = normalized.tableName;
 
         // Explicit start/end takes precedence over range
         boolean hasCustomRange = (start != null && !start.trim().isEmpty())

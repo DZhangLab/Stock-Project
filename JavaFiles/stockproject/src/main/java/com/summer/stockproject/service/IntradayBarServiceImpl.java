@@ -2,6 +2,7 @@ package com.summer.stockproject.service;
 
 import com.summer.stockproject.dao.IntradayBarRepository;
 import com.summer.stockproject.entity.IntradayBar;
+import com.summer.stockproject.util.SymbolNormalizer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -57,15 +58,8 @@ public class IntradayBarServiceImpl implements IntradayBarService {
 
     @Override
     public List<IntradayBar> universalfind(String tablename, Timestamp start, Timestamp end) {
-        // Validate table name contains only letters and numbers to prevent SQL injection
-        if (!tablename.matches("^[A-Z0-9]+$")) {
-            throw new IllegalArgumentException("Invalid table name: " + tablename);
-        }
-
-        // Handle FB -> META mapping (Facebook rebranded from FB to META)
-        if (tablename.equals("FB")) {
-            tablename = "META";
-        }
+        // Validate + normalize (rejects injection, rewrites FB -> META).
+        tablename = SymbolNormalizer.normalizeTableName(tablename);
 
         String sql = "SELECT * FROM `" + tablename + "` u WHERE u.timePoint >= :start AND u.timePoint <= :end ORDER BY u.timePoint ASC";
         Query query = entityManager.createNativeQuery(sql, IntradayBar.class);
@@ -136,15 +130,8 @@ public class IntradayBarServiceImpl implements IntradayBarService {
 
     @Override
     public Timestamp getLatestTimePoint(String tablename) {
-        // Validate table name contains only letters and numbers to prevent SQL injection
-        if (!tablename.matches("^[A-Z0-9]+$")) {
-            throw new IllegalArgumentException("Invalid table name: " + tablename);
-        }
-
-        // Handle FB -> META mapping (Facebook rebranded from FB to META)
-        if (tablename.equals("FB")) {
-            tablename = "META";
-        }
+        // Validate + normalize (rejects injection, rewrites FB -> META).
+        tablename = SymbolNormalizer.normalizeTableName(tablename);
 
         String sql = "SELECT MAX(timePoint) FROM `" + tablename + "`";
         Query query = entityManager.createNativeQuery(sql);
