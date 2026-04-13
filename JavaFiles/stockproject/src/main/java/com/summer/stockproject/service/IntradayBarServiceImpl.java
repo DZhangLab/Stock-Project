@@ -106,7 +106,7 @@ public class IntradayBarServiceImpl implements IntradayBarService {
                 agg.setMinuteOpen(bar.getMinuteOpen());
                 agg.setMinuteHigh(bar.getMinuteHigh());
                 agg.setMinuteLow(bar.getMinuteLow());
-                agg.setIntminuteClose(bar.getIntminuteClose());
+                agg.setMinuteClose(bar.getMinuteClose());
                 agg.setMinuteVolume(bar.getMinuteVolume() != null ? bar.getMinuteVolume() : 0.0);
                 buckets.put(key, agg);
             } else {
@@ -118,7 +118,7 @@ public class IntradayBarServiceImpl implements IntradayBarService {
                         || bar.getMinuteLow().compareTo(agg.getMinuteLow()) < 0)) {
                     agg.setMinuteLow(bar.getMinuteLow());
                 }
-                agg.setIntminuteClose(bar.getIntminuteClose());
+                agg.setMinuteClose(bar.getMinuteClose());
                 double vol = (agg.getMinuteVolume() != null ? agg.getMinuteVolume() : 0.0)
                         + (bar.getMinuteVolume() != null ? bar.getMinuteVolume() : 0.0);
                 agg.setMinuteVolume(vol);

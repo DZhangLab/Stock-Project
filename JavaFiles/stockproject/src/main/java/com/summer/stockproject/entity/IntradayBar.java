@@ -26,7 +26,7 @@ public class IntradayBar {
     private BigDecimal minuteLow;
 
     @Column(name="minuteClose")
-    private BigDecimal intminuteClose;
+    private BigDecimal minuteClose;
 
     @Column(name="minuteVolume")
     private Double minuteVolume;
@@ -35,13 +35,13 @@ public class IntradayBar {
 
     }
 
-    public IntradayBar(int id, Timestamp timePoint, BigDecimal minuteOpen, BigDecimal minuteHigh, BigDecimal minuteLow, BigDecimal intminuteClose, Double minuteVolume) {
+    public IntradayBar(int id, Timestamp timePoint, BigDecimal minuteOpen, BigDecimal minuteHigh, BigDecimal minuteLow, BigDecimal minuteClose, Double minuteVolume) {
         this.id = id;
         this.timePoint = timePoint;
         this.minuteOpen = minuteOpen;
         this.minuteHigh = minuteHigh;
         this.minuteLow = minuteLow;
-        this.intminuteClose = intminuteClose;
+        this.minuteClose = minuteClose;
         this.minuteVolume = minuteVolume;
     }
 
@@ -85,12 +85,12 @@ public class IntradayBar {
         this.minuteLow = minuteLow;
     }
 
-    public BigDecimal getIntminuteClose() {
-        return intminuteClose;
+    public BigDecimal getMinuteClose() {
+        return minuteClose;
     }
 
-    public void setIntminuteClose(BigDecimal intminuteClose) {
-        this.intminuteClose = intminuteClose;
+    public void setMinuteClose(BigDecimal minuteClose) {
+        this.minuteClose = minuteClose;
     }
 
     public Double getMinuteVolume() {
@@ -109,7 +109,7 @@ public class IntradayBar {
                 ", minuteOpen=" + minuteOpen +
                 ", minuteHigh=" + minuteHigh +
                 ", minuteLow=" + minuteLow +
-                ", intminuteClose=" + intminuteClose +
+                ", minuteClose=" + minuteClose +
                 ", minuteVolume=" + minuteVolume +
                 '}';
     }

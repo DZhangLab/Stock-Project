@@ -20,7 +20,7 @@ public class StockChartData {
             templist.add(toDouble(bar.getMinuteOpen()));
             templist.add(toDouble(bar.getMinuteHigh()));
             templist.add(toDouble(bar.getMinuteLow()));
-            templist.add(toDouble(bar.getIntminuteClose()));
+            templist.add(toDouble(bar.getMinuteClose()));
             price.add(templist);
             dateInSecond.add(bar.getTimePoint().getTime());
       }
