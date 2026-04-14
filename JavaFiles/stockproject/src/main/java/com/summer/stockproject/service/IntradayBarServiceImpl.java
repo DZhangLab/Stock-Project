@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.persistence.Query;
-import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -29,31 +28,6 @@ public class IntradayBarServiceImpl implements IntradayBarService {
     @Autowired
     public IntradayBarServiceImpl(IntradayBarRepository intradayBarRepository) {
         this.intradayBarRepository = intradayBarRepository;
-    }
-
-    @Override
-    public List<IntradayBar> findAll() {
-        return intradayBarRepository.findAll();
-    }
-
-    @Override
-    public IntradayBar getByTimePoint(LocalDateTime timepoint) {
-        return intradayBarRepository.getByTimePoint(timepoint);
-    }
-
-    @Override
-    public IntradayBar getById(int theid) {
-        return intradayBarRepository.getById(theid);
-    }
-
-    @Override
-    public List<IntradayBar> findByStartDateBetween(Timestamp start, Timestamp end) {
-        return intradayBarRepository.findByStartDateBetween(start, end);
-    }
-
-    @Override
-    public List<IntradayBar> findBySingleDate(Timestamp date) {
-        return intradayBarRepository.findBySingleDate(date);
     }
 
     @Override
