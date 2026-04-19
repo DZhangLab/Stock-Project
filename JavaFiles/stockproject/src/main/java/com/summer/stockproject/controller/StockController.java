@@ -122,7 +122,7 @@ public class StockController {
         String rangeStartDate = startDate.toString();
         String rangeEndDate = latestDate.toString();
 
-        model.addAttribute("apple", chartData.getPrice());
+        model.addAttribute("prices", chartData.getPrice());
         model.addAttribute("timepoint", chartData.getDateInSecond());
         model.addAttribute("symbol", displaySymbol);
         model.addAttribute("startDate", displayFormat.format(sqlStart));
@@ -200,7 +200,7 @@ public class StockController {
         String rangeStartDate = startDate.toString();
         String rangeEndDate = latestDate.toString();
 
-        model.addAttribute("apple", chartData.getPrice());
+        model.addAttribute("prices", chartData.getPrice());
         model.addAttribute("timepoint", chartData.getDateInSecond());
         model.addAttribute("symbol", displaySymbol);
         model.addAttribute("startDate", displayFormat.format(sqlStart));
@@ -324,7 +324,7 @@ public class StockController {
         String rangeStartDate = startDateStr;
         String rangeEndDate = latestDate;
 
-        model.addAttribute("apple", chartData.getPrice());
+        model.addAttribute("prices", chartData.getPrice());
         model.addAttribute("timepoint", chartData.getDateInSecond());
         model.addAttribute("symbol", displaySymbol);
         model.addAttribute("startDate", startDateStr);
@@ -368,7 +368,7 @@ public class StockController {
         String rangeStartDate = new SimpleDateFormat("yyyy-MM-dd").format(startDate);
         String rangeEndDate = new SimpleDateFormat("yyyy-MM-dd").format(endDate);
 
-        model.addAttribute("apple", listData.getPrice());
+        model.addAttribute("prices", listData.getPrice());
         model.addAttribute("timepoint", listData.getDateInSecond());
         model.addAttribute("symbol", displaySymbol);
         model.addAttribute("startDate", startDateStr);
@@ -400,7 +400,7 @@ public class StockController {
     }
 
     private void setEmptyModel(Model model, String symbol, String range, String granularity) {
-        model.addAttribute("apple", List.of());
+        model.addAttribute("prices", List.of());
         model.addAttribute("timepoint", List.of());
         model.addAttribute("symbol", symbol);
         model.addAttribute("startDate", "N/A");
