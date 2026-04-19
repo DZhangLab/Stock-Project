@@ -282,7 +282,7 @@ class QuarterlySnapshotCollector:
         return saved
 
 
-def run_aapl_quarterly_snapshot_once(symbol: str = "AAPL") -> int:
+def run_quarterly_snapshot_once(symbol: str = "AAPL") -> int:
     collector = QuarterlySnapshotCollector(symbol=symbol)
     return collector.collect_recent_snapshots()
 
@@ -292,7 +292,7 @@ def main():
     parser.add_argument("--symbol", default="AAPL", help="Stock symbol, default: AAPL")
     args = parser.parse_args()
 
-    rows = run_aapl_quarterly_snapshot_once(symbol=args.symbol)
+    rows = run_quarterly_snapshot_once(symbol=args.symbol)
     print(f"{args.symbol} quarterly snapshot ingestion complete. Affected rows: {rows}")
 
 

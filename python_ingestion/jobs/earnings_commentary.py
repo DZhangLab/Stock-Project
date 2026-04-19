@@ -481,7 +481,7 @@ class EarningsCommentaryCollector:
 
 
 
-def run_aapl_earnings_commentary_once(symbol: str = "AAPL") -> int:
+def run_earnings_commentary_once(symbol: str = "AAPL") -> int:
     collector = EarningsCommentaryCollector(symbol=symbol)
     return collector.collect_recent_commentary()
 
@@ -492,7 +492,7 @@ def main():
     )
     parser.add_argument("--symbol", default="AAPL", help="Stock symbol, default: AAPL")
     args = parser.parse_args()
-    rows = run_aapl_earnings_commentary_once(symbol=args.symbol)
+    rows = run_earnings_commentary_once(symbol=args.symbol)
     print(f"{args.symbol} earnings commentary ingestion complete. Affected rows: {rows}")
 
 

@@ -13,7 +13,7 @@ from ..config import load_config
 from ..db import get_db_manager
 from ..earnings_tone import build_earnings_tone_analyzer, EarningsToneAnalysisError
 from ..openai_responses_client import OpenAIResponsesClient
-from .aapl_earnings_commentary import EarningsCommentaryCollector
+from .earnings_commentary import EarningsCommentaryCollector
 
 logger = logging.getLogger(__name__)
 
@@ -448,7 +448,7 @@ class EarningsAIAnalysisCollector:
         return saved
 
 
-def run_aapl_earnings_ai_analysis_once(symbol: str = "AAPL") -> int:
+def run_earnings_ai_analysis_once(symbol: str = "AAPL") -> int:
     collector = EarningsAIAnalysisCollector(symbol=symbol)
     return collector.collect_recent_analyses()
 
@@ -459,7 +459,7 @@ def main():
     )
     parser.add_argument("--symbol", default="AAPL", help="Stock symbol, default: AAPL")
     args = parser.parse_args()
-    rows = run_aapl_earnings_ai_analysis_once(symbol=args.symbol)
+    rows = run_earnings_ai_analysis_once(symbol=args.symbol)
     print(f"{args.symbol} earnings AI analysis complete. Affected rows: {rows}")
 
 

@@ -40,8 +40,8 @@ def _run_intraday():
 
 
 def _run_news():
-    from .jobs.apple_news import run_apple_news_once
-    return run_apple_news_once(limit=20)
+    from .jobs.company_news import run_company_news_once
+    return run_company_news_once(limit=20)
 
 
 def _run_news_ai():
@@ -50,18 +50,18 @@ def _run_news_ai():
 
 
 def _run_quarterly():
-    from .jobs.aapl_quarterly_snapshot import run_aapl_quarterly_snapshot_once
-    return run_aapl_quarterly_snapshot_once()
+    from .jobs.quarterly_snapshot import run_quarterly_snapshot_once
+    return run_quarterly_snapshot_once()
 
 
 def _run_earnings_commentary():
-    from .jobs.aapl_earnings_commentary import run_aapl_earnings_commentary_once
-    return run_aapl_earnings_commentary_once()
+    from .jobs.earnings_commentary import run_earnings_commentary_once
+    return run_earnings_commentary_once()
 
 
 def _run_earnings_ai():
-    from .jobs.aapl_earnings_ai_analysis import run_aapl_earnings_ai_analysis_once
-    return run_aapl_earnings_ai_analysis_once()
+    from .jobs.earnings_ai_analysis import run_earnings_ai_analysis_once
+    return run_earnings_ai_analysis_once()
 
 
 # Each entry: (step_name, runner_func, sleep_after)

@@ -10,10 +10,10 @@ from apscheduler.triggers.cron import CronTrigger
 
 from .jobs.quotes import run_quote_cycle
 from .jobs.intraday import run_intraday_cycle
-from .jobs.apple_news import run_apple_news_once
-from .jobs.aapl_quarterly_snapshot import run_aapl_quarterly_snapshot_once
-from .jobs.aapl_earnings_commentary import run_aapl_earnings_commentary_once
-from .jobs.aapl_earnings_ai_analysis import run_aapl_earnings_ai_analysis_once
+from .jobs.company_news import run_company_news_once
+from .jobs.quarterly_snapshot import run_quarterly_snapshot_once
+from .jobs.earnings_commentary import run_earnings_commentary_once
+from .jobs.earnings_ai_analysis import run_earnings_ai_analysis_once
 from .jobs.company_news_ai_summary import run_company_news_ai_summary_once
 
 # Configure logging
@@ -79,7 +79,7 @@ def register_jobs():
     
     # Apple news ingestion: daily at 08:00 AM
     scheduler.add_job(
-        run_apple_news_once,
+        run_company_news_once,
         trigger=CronTrigger(hour=8, minute=0),
         id="apple_news_ingestion",
         name="AAPL News Ingestion",
@@ -100,7 +100,7 @@ def register_jobs():
 
     # Quarterly snapshot: every Monday at 08:05 AM
     scheduler.add_job(
-        run_aapl_quarterly_snapshot_once,
+        run_quarterly_snapshot_once,
         trigger=CronTrigger(day_of_week="mon", hour=8, minute=5),
         id="aapl_quarterly_snapshot",
         name="AAPL Quarterly Snapshot",
@@ -110,7 +110,7 @@ def register_jobs():
 
     # Earnings commentary: every Monday at 08:15 AM
     scheduler.add_job(
-        run_aapl_earnings_commentary_once,
+        run_earnings_commentary_once,
         trigger=CronTrigger(day_of_week="mon", hour=8, minute=15),
         id="aapl_earnings_commentary",
         name="AAPL Earnings Commentary",
@@ -120,7 +120,7 @@ def register_jobs():
 
     # Earnings AI analysis: every Monday at 08:30 AM
     scheduler.add_job(
-        run_aapl_earnings_ai_analysis_once,
+        run_earnings_ai_analysis_once,
         trigger=CronTrigger(day_of_week="mon", hour=8, minute=30),
         id="aapl_earnings_ai_analysis",
         name="AAPL Earnings AI Analysis",

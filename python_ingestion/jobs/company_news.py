@@ -151,7 +151,7 @@ class CompanyNewsCollector:
             return 0
 
 
-def run_apple_news_once(symbol: str = "AAPL", limit: int = 20) -> int:
+def run_company_news_once(symbol: str = "AAPL", limit: int = 20) -> int:
     """Entry function for one-time company news ingestion."""
     collector = CompanyNewsCollector(symbol=symbol)
     return collector.collect_news(limit=limit)
@@ -164,7 +164,7 @@ def main():
     parser.add_argument("--limit", type=int, default=20, help="Maximum number of news items to fetch")
     args = parser.parse_args()
 
-    rows = run_apple_news_once(symbol=args.symbol, limit=args.limit)
+    rows = run_company_news_once(symbol=args.symbol, limit=args.limit)
     print(f"{args.symbol} news ingestion complete. Affected rows: {rows}")
 
 
