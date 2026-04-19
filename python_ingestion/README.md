@@ -18,10 +18,10 @@ python_ingestion/
 │   ├── quotes.py          # Daily closing quote collection
 │   ├── intraday.py        # 1-minute interval data collection
 │   ├── historical.py      # Historical date range collection
-│   ├── apple_news.py      # AAPL company news ingestion
-│   ├── aapl_quarterly_snapshot.py    # AAPL latest quarterly snapshot ingestion
-│   └── aapl_earnings_commentary.py   # AAPL latest earnings call summary ingestion
-│   └── aapl_earnings_ai_analysis.py  # AAPL latest earnings AI analysis
+│   ├── company_news.py    # Company news ingestion
+│   ├── quarterly_snapshot.py         # Latest quarterly snapshot ingestion
+│   └── earnings_commentary.py        # Latest earnings call summary ingestion
+│   └── earnings_ai_analysis.py       # Latest earnings AI analysis
 └── requirements.txt       # Python dependencies
 ```
 
@@ -108,7 +108,7 @@ python -m python_ingestion.jobs.historical MSFT \
 Run one-time Apple company news ingestion (AAPL only):
 
 ```bash
-python -m python_ingestion.jobs.apple_news --limit 20
+python -m python_ingestion.jobs.company_news --limit 20
 ```
 
 Notes:
@@ -123,7 +123,7 @@ Notes:
 Run one-time latest AAPL earnings call transcript summarization:
 
 ```bash
-python -m python_ingestion.jobs.aapl_earnings_commentary
+python -m python_ingestion.jobs.earnings_commentary
 ```
 
 Notes:
@@ -137,7 +137,7 @@ Notes:
 Run one-time latest AAPL earnings AI analysis:
 
 ```bash
-python -m python_ingestion.jobs.aapl_earnings_ai_analysis
+python -m python_ingestion.jobs.earnings_ai_analysis
 ```
 
 Notes:

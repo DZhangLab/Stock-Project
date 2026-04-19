@@ -77,11 +77,11 @@ Stock-Project/
 │   ├── jobs/                       # Individual ingestion job modules
 │   │   ├── quotes.py               # Daily closing quote collection
 │   │   ├── intraday.py             # 1-minute intraday bar collection
-│   │   ├── apple_news.py           # Company news ingestion
+│   │   ├── company_news.py         # Company news ingestion
 │   │   ├── company_news_ai_summary.py  # AI-generated news summaries
-│   │   ├── aapl_quarterly_snapshot.py  # Quarterly financial snapshots
-│   │   ├── aapl_earnings_commentary.py # Earnings transcript summarization
-│   │   └── aapl_earnings_ai_analysis.py # AI earnings analysis with tone data
+│   │   ├── quarterly_snapshot.py   # Quarterly financial snapshots
+│   │   ├── earnings_commentary.py  # Earnings transcript summarization
+│   │   └── earnings_ai_analysis.py # AI earnings analysis with tone data
 │   ├── maintenance/                # Backfill and catch-up scripts
 │   └── migrations/                 # Database migration scripts
 ├── JavaFiles/stockproject/         # Java Spring Boot backend
@@ -173,10 +173,10 @@ python -m python_ingestion.refresh_all
 Each job module supports standalone execution with a `--symbol` argument:
 
 ```bash
-python -m python_ingestion.jobs.apple_news --symbol AAPL
-python -m python_ingestion.jobs.aapl_quarterly_snapshot --symbol MSFT
-python -m python_ingestion.jobs.aapl_earnings_commentary --symbol GOOGL
-python -m python_ingestion.jobs.aapl_earnings_ai_analysis --symbol AAPL
+python -m python_ingestion.jobs.company_news --symbol AAPL
+python -m python_ingestion.jobs.quarterly_snapshot --symbol MSFT
+python -m python_ingestion.jobs.earnings_commentary --symbol GOOGL
+python -m python_ingestion.jobs.earnings_ai_analysis --symbol AAPL
 ```
 
 ### Start the Spring Boot Backend
