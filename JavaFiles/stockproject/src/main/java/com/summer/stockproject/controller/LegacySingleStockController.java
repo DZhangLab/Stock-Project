@@ -10,13 +10,21 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
- * Legacy controller kept for backward compatibility.
- * Redirects old /single-stock/aapl to the generic /stock/AAPL route.
- * Retains /single-stock/single and /single-stock/test endpoints.
+ * Legacy compatibility shim for the /single-stock/* routes.
+ *
+ * Kept for backward compatibility with old bookmarks and the standalone
+ * single-day input form. Not the main stock chart controller — see
+ * {@link StockController} for the generic per-symbol chart pages.
+ *
+ * Responsibilities:
+ *   - GET  /single-stock/aapl    — 302 redirect to /stock/AAPL (preserves query params)
+ *   - GET  /single-stock/single  — renders the single-day input form
+ *   - POST /single-stock/single  — handles the input form submission
+ *   - GET  /single-stock/test    — 302 redirect to /
  */
 @Controller
 @RequestMapping("/single-stock")
-public class AAPLController {
+public class LegacySingleStockController {
 
     @GetMapping("/aapl")
     public String legacyAapl(
