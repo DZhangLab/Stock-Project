@@ -205,7 +205,7 @@ The backend exposes financial data through JSON endpoints under `/api/financials
 The platform is functional for its core use case: collecting, storing, and visualizing stock data with integrated financial analysis. The current state includes:
 
 - **Price data collection** is fully automated for 500+ symbols with 1-minute intraday resolution and daily closing quotes.
-- **Company news, quarterly snapshots, and earnings analysis** modules are generalized to support any symbol, with the scheduler currently configured to run these jobs for AAPL.
+- **Company news, quarterly snapshots, and earnings analysis** modules have a generic per-symbol structure; the scheduler's `PIPELINE_SYMBOLS` scope is currently set to `["AAPL"]` (AAPL-first default). Each job also accepts a `--symbol` argument for standalone runs on any ticker.
 - **The web frontend** renders interactive candlestick charts with overlaid news, AI summaries, quarterly financials, and earnings analysis for any symbol that has data in the database.
 - **AI analysis** uses OpenAI for structured news and earnings summaries, and FinBERT for earnings call tone classification.
 

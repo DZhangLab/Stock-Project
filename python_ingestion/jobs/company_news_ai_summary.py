@@ -1,6 +1,6 @@
 """
 Symbol-aware company news AI summary job.
-Phase 1 usage is AAPL, but the implementation accepts a symbol input.
+Generic per-symbol structure; current rollout scope is AAPL-first by default.
 """
 import argparse
 import json

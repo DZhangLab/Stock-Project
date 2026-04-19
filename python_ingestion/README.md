@@ -58,7 +58,7 @@ API_BASE_URL=https://api.twelvedata.com
 API_TIMEOUT=30
 API_MAX_RETRIES=3
 
-# Alpha Vantage API Configuration (for Apple news ingestion)
+# Alpha Vantage API Configuration (company news, earnings, quarterly financials)
 ALPHA_VANTAGE_API_KEY=your_alpha_vantage_api_key_here
 ALPHA_VANTAGE_BASE_URL=https://www.alphavantage.co/query
 ALPHA_VANTAGE_TIMEOUT=30
@@ -103,45 +103,45 @@ python -m python_ingestion.jobs.historical MSFT \
   --table-name amazon
 ```
 
-### Apple News Ingestion (Phase 1 MVP)
+### Company News Ingestion
 
-Run one-time Apple company news ingestion (AAPL only):
+Run one-time company news ingestion (defaults to AAPL; pass `--symbol` to target any ticker):
 
 ```bash
 python -m python_ingestion.jobs.company_news --limit 20
 ```
 
 Notes:
-- This job only ingests `AAPL` company news.
-- It uses Alpha Vantage `NEWS_SENTIMENT` endpoint with ticker `AAPL`.
+- Generic per-symbol structure; current rollout scope is AAPL-first by default. Pass `--symbol` to run for any ticker.
+- It uses the Alpha Vantage `NEWS_SENTIMENT` endpoint keyed by the requested ticker.
 - The `ALPHA_VANTAGE_API_KEY` must be set in `python_ingestion/.env`.
 - The `company_news` table is created automatically if it does not exist.
 - Deduplication is handled by URL hash with unique key `(symbol, url_hash)`.
 
-### Apple Earnings Call Commentary Ingestion (Next MVP Layer)
+### Earnings Call Commentary Ingestion
 
-Run one-time latest AAPL earnings call transcript summarization:
+Run one-time latest earnings call transcript summarization (defaults to AAPL):
 
 ```bash
 python -m python_ingestion.jobs.earnings_commentary
 ```
 
 Notes:
-- Scope is fixed to `AAPL` and latest call only.
+- Generic per-symbol structure; current rollout scope is AAPL-first by default. Pass `--symbol` to run for any ticker. Latest call only.
 - This job uses Alpha Vantage `EARNINGS` and `EARNINGS_CALL_TRANSCRIPT`.
 - The `earnings_call_summary` table is created automatically if it does not exist.
 - Upsert key is `(symbol, fiscal_period_label)` to keep one latest summary per fiscal quarter.
 
-### Apple Earnings AI Analysis (Phase 2 MVP)
+### Earnings AI Analysis
 
-Run one-time latest AAPL earnings AI analysis:
+Run one-time latest earnings AI analysis (defaults to AAPL):
 
 ```bash
 python -m python_ingestion.jobs.earnings_ai_analysis
 ```
 
 Notes:
-- Scope is fixed to `AAPL` and latest call only.
+- Generic per-symbol structure; current rollout scope is AAPL-first by default. Pass `--symbol` to run for any ticker. Latest call only.
 - This job reuses Alpha Vantage `EARNINGS` and `EARNINGS_CALL_TRANSCRIPT`.
 - It prepares transcript sentences, runs live FinBERT sentiment inference, and calls the configured LLM for structured output.
 - The `earnings_ai_analysis` table is created automatically if it does not exist.

@@ -240,7 +240,7 @@ class DatabaseManager:
     def ensure_company_news_table(self) -> bool:
         """
         Ensure company_news table exists.
-        This table is used by the Apple news MVP ingestion flow.
+        This table is used by the company news ingestion flow (symbol-keyed).
 
         Returns:
             bool: True if table exists or was created successfully
@@ -437,7 +437,7 @@ class DatabaseManager:
     def ensure_earnings_call_summary_table(self) -> bool:
         """
         Ensure earnings_call_summary table exists.
-        Stores latest AAPL earnings call management commentary summary.
+        Stores latest earnings call management commentary summary per symbol.
 
         Returns:
             bool: True if table exists or was created successfully
@@ -472,7 +472,7 @@ class DatabaseManager:
     def ensure_earnings_ai_analysis_table(self) -> bool:
         """
         Ensure earnings_ai_analysis table exists.
-        Stores latest AAPL earnings AI analysis by fiscal period.
+        Stores latest earnings AI analysis per symbol by fiscal period.
 
         Returns:
             bool: True if table exists or was created successfully

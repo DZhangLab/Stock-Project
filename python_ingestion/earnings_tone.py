@@ -1,5 +1,5 @@
 """
-Tone analyzers for AAPL earnings transcript analysis.
+Tone analyzers for earnings transcript analysis (symbol-agnostic).
 """
 import os
 import logging
