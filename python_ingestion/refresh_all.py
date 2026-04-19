@@ -1,26 +1,29 @@
 """
-One-shot full AAPL data refresh.
+One-shot full data refresh for the pipeline scope.
 
 Usage:
     python -m python_ingestion.refresh_all
 
-Runs every data pipeline step once in dependency-safe order, then exits.
+Runs every data pipeline step once in dependency-safe order for each symbol
+in PIPELINE_SYMBOLS (default: AAPL), then exits.
 Does NOT start the scheduler — use main.py for that.
 """
 import logging
 import sys
 import time
 
+from .config import PIPELINE_SYMBOLS
+
 logger = logging.getLogger(__name__)
 
 STEPS = [
-    "AAPL Quote",
-    "AAPL Intraday",
-    "AAPL News",
-    "AAPL News AI Summary",
-    "AAPL Quarterly Snapshot",
-    "AAPL Earnings Commentary",
-    "AAPL Earnings AI Analysis",
+    "Quote",
+    "Intraday",
+    "Company News",
+    "Company News AI Summary",
+    "Quarterly Snapshot",
+    "Earnings Commentary",
+    "Earnings AI Analysis",
 ]
 
 # Seconds to pause between Alpha Vantage-heavy steps to respect rate limits.
@@ -30,38 +33,59 @@ AV_COOLDOWN = 2.0
 def _run_quote():
     from .jobs.quotes import QuoteCollector
     collector = QuoteCollector()
-    return collector.collect_quote("AAPL")
+    total = 0
+    for symbol in PIPELINE_SYMBOLS:
+        total += collector.collect_quote(symbol) or 0
+    return total
 
 
 def _run_intraday():
     from .jobs.intraday import IntradayCollector
     collector = IntradayCollector()
-    return collector.collect_intraday("AAPL")
+    total = 0
+    for symbol in PIPELINE_SYMBOLS:
+        total += collector.collect_intraday(symbol) or 0
+    return total
 
 
 def _run_news():
     from .jobs.company_news import run_company_news_once
-    return run_company_news_once(limit=20)
+    total = 0
+    for symbol in PIPELINE_SYMBOLS:
+        total += run_company_news_once(symbol=symbol, limit=20) or 0
+    return total
 
 
 def _run_news_ai():
     from .jobs.company_news_ai_summary import run_company_news_ai_summary_once
-    return run_company_news_ai_summary_once(symbol="AAPL", limit=10)
+    total = 0
+    for symbol in PIPELINE_SYMBOLS:
+        total += run_company_news_ai_summary_once(symbol=symbol, limit=10) or 0
+    return total
 
 
 def _run_quarterly():
     from .jobs.quarterly_snapshot import run_quarterly_snapshot_once
-    return run_quarterly_snapshot_once()
+    total = 0
+    for symbol in PIPELINE_SYMBOLS:
+        total += run_quarterly_snapshot_once(symbol=symbol) or 0
+    return total
 
 
 def _run_earnings_commentary():
     from .jobs.earnings_commentary import run_earnings_commentary_once
-    return run_earnings_commentary_once()
+    total = 0
+    for symbol in PIPELINE_SYMBOLS:
+        total += run_earnings_commentary_once(symbol=symbol) or 0
+    return total
 
 
 def _run_earnings_ai():
     from .jobs.earnings_ai_analysis import run_earnings_ai_analysis_once
-    return run_earnings_ai_analysis_once()
+    total = 0
+    for symbol in PIPELINE_SYMBOLS:
+        total += run_earnings_ai_analysis_once(symbol=symbol) or 0
+    return total
 
 
 # Each entry: (step_name, runner_func, sleep_after)
@@ -105,7 +129,7 @@ def main():
     )
 
     logger.info("=" * 60)
-    logger.info("AAPL full refresh — one-shot pipeline")
+    logger.info("Full refresh — one-shot pipeline (scope: %s)", PIPELINE_SYMBOLS)
     logger.info("=" * 60)
 
     succeeded, failed, results = refresh_all()

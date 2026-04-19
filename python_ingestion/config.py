@@ -14,6 +14,12 @@ if not os.path.exists(env_path):
 load_dotenv(env_path)
 
 
+# Default scope of symbols for the AI / news / earnings pipeline.
+# Keep as a list so the scheduler/refresh pipeline can iterate generically,
+# but the effective default remains AAPL-first.
+PIPELINE_SYMBOLS: list[str] = ["AAPL"]
+
+
 @dataclass
 class DatabaseConfig:
     """Database configuration dataclass."""

@@ -8,6 +8,7 @@ import sys
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from .config import PIPELINE_SYMBOLS
 from .jobs.quotes import run_quote_cycle
 from .jobs.intraday import run_intraday_cycle
 from .jobs.company_news import run_company_news_once
@@ -30,6 +31,31 @@ logger = logging.getLogger(__name__)
 
 # Global scheduler instance
 scheduler = BackgroundScheduler()
+
+
+def _run_company_news_pipeline():
+    for symbol in PIPELINE_SYMBOLS:
+        run_company_news_once(symbol=symbol, limit=20)
+
+
+def _run_company_news_ai_summary_pipeline():
+    for symbol in PIPELINE_SYMBOLS:
+        run_company_news_ai_summary_once(symbol=symbol, limit=10)
+
+
+def _run_quarterly_snapshot_pipeline():
+    for symbol in PIPELINE_SYMBOLS:
+        run_quarterly_snapshot_once(symbol=symbol)
+
+
+def _run_earnings_commentary_pipeline():
+    for symbol in PIPELINE_SYMBOLS:
+        run_earnings_commentary_once(symbol=symbol)
+
+
+def _run_earnings_ai_analysis_pipeline():
+    for symbol in PIPELINE_SYMBOLS:
+        run_earnings_ai_analysis_once(symbol=symbol)
 
 
 def setup_signal_handlers():
@@ -77,65 +103,64 @@ def register_jobs():
         replace_existing=True
     )
     
-    # Apple news ingestion: daily at 08:00 AM
+    # Company news ingestion: daily at 08:00 AM
     scheduler.add_job(
-        run_company_news_once,
+        _run_company_news_pipeline,
         trigger=CronTrigger(hour=8, minute=0),
-        id="apple_news_ingestion",
-        name="AAPL News Ingestion",
+        id="company_news_ingestion",
+        name="Company News Ingestion",
         max_instances=1,
         replace_existing=True
     )
 
     # Company news AI summary: daily at 08:10 AM (after news ingestion)
     scheduler.add_job(
-        run_company_news_ai_summary_once,
+        _run_company_news_ai_summary_pipeline,
         trigger=CronTrigger(hour=8, minute=10),
-        kwargs={"symbol": "AAPL", "limit": 10},
         id="company_news_ai_summary",
-        name="AAPL Company News AI Summary",
+        name="Company News AI Summary",
         max_instances=1,
         replace_existing=True
     )
 
     # Quarterly snapshot: every Monday at 08:05 AM
     scheduler.add_job(
-        run_quarterly_snapshot_once,
+        _run_quarterly_snapshot_pipeline,
         trigger=CronTrigger(day_of_week="mon", hour=8, minute=5),
-        id="aapl_quarterly_snapshot",
-        name="AAPL Quarterly Snapshot",
+        id="quarterly_snapshot",
+        name="Quarterly Snapshot",
         max_instances=1,
         replace_existing=True
     )
 
     # Earnings commentary: every Monday at 08:15 AM
     scheduler.add_job(
-        run_earnings_commentary_once,
+        _run_earnings_commentary_pipeline,
         trigger=CronTrigger(day_of_week="mon", hour=8, minute=15),
-        id="aapl_earnings_commentary",
-        name="AAPL Earnings Commentary",
+        id="earnings_commentary",
+        name="Earnings Commentary",
         max_instances=1,
         replace_existing=True
     )
 
     # Earnings AI analysis: every Monday at 08:30 AM
     scheduler.add_job(
-        run_earnings_ai_analysis_once,
+        _run_earnings_ai_analysis_pipeline,
         trigger=CronTrigger(day_of_week="mon", hour=8, minute=30),
-        id="aapl_earnings_ai_analysis",
-        name="AAPL Earnings AI Analysis",
+        id="earnings_ai_analysis",
+        name="Earnings AI Analysis",
         max_instances=1,
         replace_existing=True
     )
 
-    logger.info("Scheduled jobs registered:")
+    logger.info("Scheduled jobs registered (pipeline scope: %s):", PIPELINE_SYMBOLS)
     logger.info("  - Quote Collection: every minute at :30s, 08:00-17:59 America/Chicago")
     logger.info("  - Intraday Collection: every minute, 08:00-17:59 America/Chicago")
-    logger.info("  - AAPL News Ingestion: daily at 08:00")
-    logger.info("  - AAPL Company News AI Summary: daily at 08:10")
-    logger.info("  - AAPL Quarterly Snapshot: every Monday at 08:05")
-    logger.info("  - AAPL Earnings Commentary: every Monday at 08:15")
-    logger.info("  - AAPL Earnings AI Analysis: every Monday at 08:30")
+    logger.info("  - Company News Ingestion: daily at 08:00")
+    logger.info("  - Company News AI Summary: daily at 08:10")
+    logger.info("  - Quarterly Snapshot: every Monday at 08:05")
+    logger.info("  - Earnings Commentary: every Monday at 08:15")
+    logger.info("  - Earnings AI Analysis: every Monday at 08:30")
 
 
 def main():
