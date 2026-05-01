@@ -514,6 +514,41 @@ class DatabaseManager:
             logger.error(f"Error creating table earnings_ai_analysis: {e}")
             return False
     
+    def ensure_daily_returns_table(self) -> bool:
+        """
+        Ensure daily_returns table exists.
+        Stores per-(symbol, trade_date) close-to-close returns derived
+        from everydayAfterClose.  Used by the Phase 1 shared returns
+        layer and by downstream volatility / event-study analytics.
+
+        Returns:
+            bool: True if the table exists or was created successfully.
+        """
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS daily_returns (
+            id BIGINT NOT NULL AUTO_INCREMENT,
+            symbol VARCHAR(16) NOT NULL,
+            trade_date DATE NOT NULL,
+            prev_close DECIMAL(18, 4) NOT NULL,
+            close DECIMAL(18, 4) NOT NULL,
+            log_return DECIMAL(18, 8) NOT NULL,
+            simple_return DECIMAL(18, 8) NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_daily_returns_symbol_date (symbol, trade_date),
+            INDEX idx_daily_returns_symbol_date (symbol, trade_date DESC)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        """
+
+        try:
+            self.execute(create_table_sql)
+            logger.info("Table daily_returns ensured")
+            return True
+        except Error as e:
+            logger.error(f"Error creating table daily_returns: {e}")
+            return False
+
     def has_valid_earnings_call_summary(self, symbol: str, fiscal_period_label: str) -> bool:
         """Return True if a complete earnings call summary exists for the given quarter."""
         rows = self.execute(
