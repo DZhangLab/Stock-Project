@@ -549,6 +549,48 @@ class DatabaseManager:
             logger.error(f"Error creating table daily_returns: {e}")
             return False
 
+    def ensure_daily_volatility_table(self) -> bool:
+        """
+        Ensure daily_volatility table exists.
+        Stores per-(symbol, as_of_date) realized volatility metrics, a
+        tercile regime label, a descriptive ±1-sigma close envelope, and
+        an empirical 90-day hit-rate field.  HAR-RV forecast columns are
+        present in the schema but populated later by Phase 3.
+
+        Returns:
+            bool: True if the table exists or was created successfully.
+        """
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS daily_volatility (
+            id BIGINT NOT NULL AUTO_INCREMENT,
+            symbol VARCHAR(16) NOT NULL,
+            as_of_date DATE NOT NULL,
+            realized_vol_5d DECIMAL(10, 6) NULL,
+            realized_vol_21d DECIMAL(10, 6) NULL,
+            realized_vol_63d DECIMAL(10, 6) NULL,
+            volatility_regime ENUM('low', 'medium', 'high') NULL,
+            vol_band_low DECIMAL(18, 4) NULL,
+            vol_band_high DECIMAL(18, 4) NULL,
+            band_hit_rate_trailing_90d DECIMAL(6, 4) NULL,
+            har_rv_forecast_1d DECIMAL(10, 6) NULL,
+            har_rv_model_version VARCHAR(32) NULL,
+            computed_at DATETIME NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_daily_volatility_symbol_date (symbol, as_of_date),
+            INDEX idx_daily_volatility_symbol_date (symbol, as_of_date DESC)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        """
+
+        try:
+            self.execute(create_table_sql)
+            logger.info("Table daily_volatility ensured")
+            return True
+        except Error as e:
+            logger.error(f"Error creating table daily_volatility: {e}")
+            return False
+
     def has_valid_earnings_call_summary(self, symbol: str, fiscal_period_label: str) -> bool:
         """Return True if a complete earnings call summary exists for the given quarter."""
         rows = self.execute(
