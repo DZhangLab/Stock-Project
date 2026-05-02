@@ -143,6 +143,71 @@
             color: #8a1f1f;
         }
 
+        /* Daily volatility card */
+        .vol-card {
+            margin-top: 14px;
+            margin-bottom: 14px;
+        }
+        .vol-card .panel-body {
+            padding: 12px 16px;
+        }
+        .vol-card-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+        .vol-card-title {
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #334155;
+        }
+        .vol-card-asof {
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: 0;
+            color: #6b7280;
+            font-size: 12px;
+            margin-left: 6px;
+        }
+        .vol-metrics-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            align-items: baseline;
+            font-size: 13px;
+            color: #333;
+        }
+        .vol-metric .vol-metric-label {
+            color: #8b95a5;
+            font-size: 10.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-right: 4px;
+        }
+        .vol-metric .vol-metric-value {
+            font-weight: 600;
+        }
+        .vol-toggle-wrap {
+            margin-left: auto;
+        }
+        .vol-toggle-btn[disabled] {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .vol-disclaimer {
+            margin: 8px 0 0 0;
+            font-size: 11px;
+            color: #8b95a5;
+            line-height: 1.4;
+        }
+        .vol-regime-pill {
+            font-size: 11px;
+        }
+
         /* Time range selector buttons */
         .range-btn-bar {
             display: flex;
@@ -217,6 +282,40 @@
             The chart may not display properly. Try selecting a date with more data, or expand the date range.
         </div>
         <div id="chartContainer" style="height: 420px; width: 100%; position: relative;"></div>
+    </div>
+
+    <!-- Daily Volatility card (Phase 2 MVP).  Populated by /api/volatility/latest. -->
+    <div th:if="${hasData}" id="volatilityCard" class="panel panel-default vol-card">
+        <div class="panel-body">
+            <p id="volatilityStatus" class="text-muted" style="margin-bottom: 8px; font-size: 12px;">
+                Loading daily volatility...
+            </p>
+            <div id="volatilityContent" style="display: none;">
+                <div class="vol-card-header">
+                    <div class="vol-card-title">
+                        Daily Volatility<span id="volAsOfLabel" class="vol-card-asof"></span>
+                    </div>
+                    <span id="volRegimeBadge" class="news-ai-pill news-ai-pill-mixed vol-regime-pill">N/A</span>
+                </div>
+                <div class="vol-metrics-row">
+                    <span class="vol-metric"><span class="vol-metric-label">RV5</span><span id="volRv5" class="vol-metric-value">&mdash;</span></span>
+                    <span class="vol-metric"><span class="vol-metric-label">RV21</span><span id="volRv21" class="vol-metric-value">&mdash;</span></span>
+                    <span class="vol-metric"><span class="vol-metric-label">RV63</span><span id="volRv63" class="vol-metric-value">&mdash;</span></span>
+                    <span class="vol-metric"><span class="vol-metric-label">90d Hit Rate</span><span id="volHitRate" class="vol-metric-value">&mdash;</span></span>
+                    <span class="vol-toggle-wrap">
+                        <button type="button" id="volEnvelopeToggle"
+                                class="btn btn-default btn-sm vol-toggle-btn" disabled>
+                            Show volatility envelope
+                        </button>
+                    </span>
+                </div>
+                <p class="vol-disclaimer">
+                    Descriptive &plusmn;1&sigma; envelope from 21-day close-to-close volatility.
+                    <span id="volHitRateTip"></span>
+                    This is a volatility envelope, not a price prediction.
+                </p>
+            </div>
+        </div>
     </div>
 
     <div th:if="${showNews}" style="margin-top: 30px;">
@@ -428,6 +527,138 @@ function shortSummary(value) {
     }
     return brief;
 }
+</script>
+<script type="text/javascript">
+/* ── Daily Volatility card (Phase 2 MVP) ───────────────────────────
+ *
+ * Fetches /api/volatility/latest and renders the regime badge and
+ * RV5 / RV21 / RV63 / 90-day hit-rate metrics.  The "Show volatility
+ * envelope" toggle is only enabled when getdata.js is rendering a
+ * daily chart (3M / 6M / YTD / 1Y) — getdata.js owns that wiring
+ * because it owns the chart instance.
+ */
+(function() {
+    if (!symbol) {
+        return;
+    }
+
+    function showFallback(message) {
+        var statusEl = document.getElementById("volatilityStatus");
+        var contentEl = document.getElementById("volatilityContent");
+        if (statusEl) {
+            statusEl.textContent = message;
+            statusEl.className = "text-muted";
+            statusEl.style.display = "block";
+        }
+        if (contentEl) {
+            contentEl.style.display = "none";
+        }
+    }
+
+    function fmtPercent(annualized) {
+        if (annualized === null || annualized === undefined || annualized === "") {
+            return "—";
+        }
+        var num = Number(annualized);
+        if (isNaN(num)) {
+            return "—";
+        }
+        return (num * 100).toFixed(1) + "%";
+    }
+
+    function fmtHitRate(rate) {
+        if (rate === null || rate === undefined || rate === "") {
+            return "—";
+        }
+        var num = Number(rate);
+        if (isNaN(num)) {
+            return "—";
+        }
+        return (num * 100).toFixed(1) + "%";
+    }
+
+    function setRegimeBadge(label) {
+        var el = document.getElementById("volRegimeBadge");
+        if (!el) { return; }
+        var normalized = (typeof label === "string") ? label.trim().toLowerCase() : "";
+        el.className = "news-ai-pill vol-regime-pill";
+        if (normalized === "low") {
+            el.className += " news-ai-pill-positive";
+            el.textContent = "Low";
+        } else if (normalized === "high") {
+            el.className += " news-ai-pill-negative";
+            el.textContent = "High";
+        } else if (normalized === "medium") {
+            el.className += " news-ai-pill-mixed";
+            el.textContent = "Medium";
+        } else {
+            el.className += " news-ai-pill-mixed";
+            el.textContent = "Not enough data";
+        }
+    }
+
+    function renderLatest(data) {
+        var statusEl = document.getElementById("volatilityStatus");
+        var contentEl = document.getElementById("volatilityContent");
+        if (statusEl) { statusEl.style.display = "none"; }
+        if (contentEl) { contentEl.style.display = "block"; }
+
+        var asOfEl = document.getElementById("volAsOfLabel");
+        if (asOfEl) {
+            asOfEl.textContent = data.asOfDate ? "  As of " + data.asOfDate : "";
+        }
+
+        setRegimeBadge(data.volatilityRegime);
+
+        var rv5El = document.getElementById("volRv5");
+        var rv21El = document.getElementById("volRv21");
+        var rv63El = document.getElementById("volRv63");
+        var hitEl = document.getElementById("volHitRate");
+
+        if (rv5El) { rv5El.textContent = fmtPercent(data.realizedVol5d); }
+        if (rv21El) { rv21El.textContent = fmtPercent(data.realizedVol21d); }
+        if (rv63El) { rv63El.textContent = fmtPercent(data.realizedVol63d); }
+        if (hitEl)  { hitEl.textContent  = fmtHitRate(data.bandHitRateTrailing90d); }
+
+        var tipEl = document.getElementById("volHitRateTip");
+        if (tipEl) {
+            if (data.bandHitRateTrailing90d !== null && data.bandHitRateTrailing90d !== undefined) {
+                tipEl.textContent =
+                    "Empirically captured " + fmtHitRate(data.bandHitRateTrailing90d) +
+                    " of next-day closes over the trailing 90 days.";
+            } else {
+                tipEl.textContent =
+                    "Hit-rate not yet available (need at least 30 trailing observations).";
+            }
+        }
+
+        // Expose the latest payload so getdata.js can pick it up if it loads later.
+        window.__latestVolatility = data;
+    }
+
+    fetch("/api/volatility/latest?symbol=" + encodeURIComponent(symbol))
+        .then(function(response) {
+            if (response.status === 404) {
+                showFallback("Daily volatility is not available for " + symbol + " yet.");
+                return null;
+            }
+            if (!response.ok) {
+                throw new Error("volatility fetch failed");
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            if (!data) { return; }
+            if (!data.asOfDate) {
+                showFallback("Daily volatility is not available for " + symbol + " yet.");
+                return;
+            }
+            renderLatest(data);
+        })
+        .catch(function() {
+            showFallback("Daily volatility is not available for " + symbol + " yet.");
+        });
+})();
 </script>
 <script type="text/javascript">
 (function() {

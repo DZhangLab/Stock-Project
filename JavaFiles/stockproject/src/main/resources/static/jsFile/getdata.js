@@ -433,6 +433,174 @@ $(document).ready(function () {
     el.style.display = "flex";
   })();
 
+  // =====================================================
+  // 8. Volatility envelope toggle (Phase 2 MVP)
+  //
+  //    Adds two dashed line series for vol_band_low and
+  //    vol_band_high when the user enables the toggle on
+  //    daily-range charts (3M/6M/YTD/1Y).  For intraday or
+  //    multi-day-sampled views, the toggle stays disabled
+  //    because as_of_date is one row per trading day and
+  //    cannot be aligned to minute-bar timestamps.
+  //
+  //    /api/volatility/history is fetched lazily on first
+  //    enable and cached for subsequent toggles within the
+  //    same page lifetime.
+  // =====================================================
+
+  (function setupVolatilityEnvelope() {
+    var toggleBtn = document.getElementById("volEnvelopeToggle");
+    if (!toggleBtn) {
+      return;
+    }
+
+    if (!isDaily) {
+      toggleBtn.disabled = true;
+      toggleBtn.title = "Available on daily ranges (3M / 6M / YTD / 1Y)";
+      return;
+    }
+
+    if (typeof symbol !== "string" || !symbol) {
+      toggleBtn.disabled = true;
+      return;
+    }
+
+    toggleBtn.disabled = false;
+
+    var lowSeries = null;
+    var highSeries = null;
+    var cachedSeries = null; // [{time, low, high}, ...]
+    var enabled = false;
+
+    function dateStringToEpochSec(dateStr) {
+      // Parse "yyyy-MM-dd" as midnight UTC so the value matches
+      // the daily chart's coordinate system (epoch seconds at
+      // midnight UTC, set in the data-loading section above).
+      if (typeof dateStr !== "string" || dateStr.length < 10) {
+        return null;
+      }
+      var parts = dateStr.slice(0, 10).split("-");
+      if (parts.length !== 3) {
+        return null;
+      }
+      var y = parseInt(parts[0], 10);
+      var m = parseInt(parts[1], 10);
+      var d = parseInt(parts[2], 10);
+      if (isNaN(y) || isNaN(m) || isNaN(d)) {
+        return null;
+      }
+      return Math.floor(Date.UTC(y, m - 1, d) / 1000);
+    }
+
+    function buildSeriesData(series) {
+      var lowData = [];
+      var highData = [];
+      for (var i = 0; i < series.length; i++) {
+        var item = series[i];
+        if (item.volBandLow == null || item.volBandHigh == null) {
+          continue;
+        }
+        var t = dateStringToEpochSec(item.asOfDate);
+        if (t == null) { continue; }
+        lowData.push({ time: t, value: Number(item.volBandLow) });
+        highData.push({ time: t, value: Number(item.volBandHigh) });
+      }
+      return { low: lowData, high: highData };
+    }
+
+    function drawEnvelope() {
+      if (!cachedSeries || !cachedSeries.length) {
+        return;
+      }
+      var built = buildSeriesData(cachedSeries);
+      if (!built.low.length) {
+        return;
+      }
+      var BAND_COLOR = "rgba(120, 130, 145, 0.55)";
+      lowSeries = chart.addLineSeries({
+        color: BAND_COLOR,
+        lineWidth: 1,
+        lineStyle: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false
+      });
+      highSeries = chart.addLineSeries({
+        color: BAND_COLOR,
+        lineWidth: 1,
+        lineStyle: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false
+      });
+      lowSeries.setData(built.low);
+      highSeries.setData(built.high);
+    }
+
+    function clearEnvelope() {
+      if (lowSeries) {
+        try { chart.removeSeries(lowSeries); } catch (e) { /* ignore */ }
+        lowSeries = null;
+      }
+      if (highSeries) {
+        try { chart.removeSeries(highSeries); } catch (e) { /* ignore */ }
+        highSeries = null;
+      }
+    }
+
+    function setButtonLabel() {
+      toggleBtn.textContent = enabled
+        ? "Hide volatility envelope"
+        : "Show volatility envelope";
+    }
+
+    toggleBtn.addEventListener("click", function() {
+      if (enabled) {
+        clearEnvelope();
+        enabled = false;
+        setButtonLabel();
+        return;
+      }
+
+      if (cachedSeries) {
+        drawEnvelope();
+        enabled = true;
+        setButtonLabel();
+        return;
+      }
+
+      toggleBtn.disabled = true;
+      toggleBtn.textContent = "Loading…";
+
+      fetch("/api/volatility/history?symbol=" + encodeURIComponent(symbol) + "&days=300")
+        .then(function(resp) {
+          if (!resp.ok) {
+            throw new Error("history fetch failed");
+          }
+          return resp.json();
+        })
+        .then(function(data) {
+          var series = (data && data.series) ? data.series : [];
+          cachedSeries = series;
+          if (!series.length) {
+            toggleBtn.disabled = true;
+            toggleBtn.textContent = "No envelope data";
+            return;
+          }
+          drawEnvelope();
+          enabled = true;
+          toggleBtn.disabled = false;
+          setButtonLabel();
+        })
+        .catch(function() {
+          toggleBtn.disabled = false;
+          enabled = false;
+          setButtonLabel();
+          console.warn("Volatility envelope: history fetch failed");
+        });
+    });
+  })();
+
   window.addEventListener("resize", function () {
     chart.applyOptions({ width: container.clientWidth });
   });
