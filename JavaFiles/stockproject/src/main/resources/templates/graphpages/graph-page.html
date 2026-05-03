@@ -208,6 +208,67 @@
             font-size: 11px;
         }
 
+        /* Volatility model evaluation card */
+        .vol-eval-card {
+            margin-top: 0;
+            margin-bottom: 18px;
+        }
+        .vol-eval-title {
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+        .vol-eval-subtitle {
+            margin: 0 0 8px 0;
+            font-size: 12px;
+            color: #4b5563;
+            line-height: 1.5;
+        }
+        .vol-eval-helper {
+            margin: 0 0 10px 0;
+            font-size: 11px;
+            color: #8b95a5;
+            line-height: 1.45;
+        }
+        .vol-eval-window {
+            margin: 0 0 10px 0;
+            font-size: 12px;
+            color: #475569;
+        }
+        .vol-eval-table {
+            margin-bottom: 10px;
+            font-size: 12.5px;
+        }
+        .vol-eval-table th {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #64748b;
+            border-top: none !important;
+        }
+        .vol-eval-table td {
+            vertical-align: middle !important;
+        }
+        .vol-eval-best-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .vol-eval-best-label {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: #f4f6f8;
+            color: #334155;
+            font-size: 11px;
+            line-height: 1.3;
+            font-weight: 600;
+        }
+
         /* Time range selector buttons */
         .range-btn-bar {
             display: flex;
@@ -314,6 +375,38 @@
                     <span id="volHitRateTip"></span>
                     This is a volatility envelope, not a price prediction.
                 </p>
+            </div>
+        </div>
+    </div>
+
+    <div th:if="${hasData}" id="volatilityEvaluationCard" class="panel panel-default vol-eval-card">
+        <div class="panel-body">
+            <p id="volatilityEvaluationStatus" class="text-muted" style="margin-bottom: 8px; font-size: 12px;">
+                Loading model evaluation...
+            </p>
+            <div id="volatilityEvaluationContent" style="display: none;">
+                <div class="vol-eval-title">Volatility Model Evaluation</div>
+                <p class="vol-eval-subtitle">
+                    Experimental one-day-ahead realized-volatility forecast. This evaluates volatility magnitude, not price direction.
+                </p>
+                <p class="vol-eval-helper">
+                    Lower MAE, RMSE, and QLIKE indicate better out-of-sample volatility forecast performance.
+                </p>
+                <p id="volatilityEvaluationWindow" class="vol-eval-window">&mdash;</p>
+                <div style="overflow-x: auto;">
+                    <table class="table table-condensed table-bordered vol-eval-table" style="margin-bottom: 0;">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th>MAE</th>
+                                <th>RMSE</th>
+                                <th>QLIKE</th>
+                            </tr>
+                        </thead>
+                        <tbody id="volatilityEvaluationTableBody"></tbody>
+                    </table>
+                </div>
+                <div id="volatilityEvaluationBest" class="vol-eval-best-row" style="margin-top: 10px;"></div>
             </div>
         </div>
     </div>
@@ -657,6 +750,165 @@ function shortSummary(value) {
         })
         .catch(function() {
             showFallback("Daily volatility is not available for " + symbol + " yet.");
+        });
+})();
+</script>
+<script type="text/javascript">
+/* ── Volatility Model Evaluation card (Phase 3B) ───────────────────
+ *
+ * Fetches /api/volatility/evaluation/latest and renders the latest
+ * walk-forward evaluation metrics for HAR-RV and the baseline models.
+ * This panel evaluates volatility forecast quality only; it does not
+ * imply any price-direction prediction.
+ */
+(function() {
+    if (!symbol) {
+        return;
+    }
+
+    function showFallback(message) {
+        var statusEl = document.getElementById("volatilityEvaluationStatus");
+        var contentEl = document.getElementById("volatilityEvaluationContent");
+        if (statusEl) {
+            statusEl.textContent = message;
+            statusEl.className = "text-muted";
+            statusEl.style.display = "block";
+        }
+        if (contentEl) {
+            contentEl.style.display = "none";
+        }
+    }
+
+    function formatMetric(value) {
+        if (value === null || value === undefined || value === "") {
+            return "—";
+        }
+        var num = Number(value);
+        if (isNaN(num)) {
+            return "—";
+        }
+        return num.toFixed(4);
+    }
+
+    function friendlyModelName(modelName) {
+        if (modelName === "har_rv_v1") {
+            return "HAR-RV";
+        }
+        if (modelName === "baseline_rolling21") {
+            return "21-day rolling baseline";
+        }
+        if (modelName === "baseline_yesterday_rv") {
+            return "Yesterday RV baseline";
+        }
+        return modelName || "Unknown";
+    }
+
+    function metricValue(item, key) {
+        if (!item || item[key] === null || item[key] === undefined || item[key] === "") {
+            return null;
+        }
+        var num = Number(item[key]);
+        return isNaN(num) ? null : num;
+    }
+
+    function bestModelLabel(items, key, label) {
+        var best = null;
+        for (var i = 0; i < items.length; i++) {
+            var value = metricValue(items[i], key);
+            if (value === null) {
+                continue;
+            }
+            if (best === null || value < best.value) {
+                best = { value: value, modelName: friendlyModelName(items[i].modelName) };
+            }
+        }
+        return best ? (label + ': ' + best.modelName) : (label + ': —');
+    }
+
+    function renderLatest(data) {
+        var rows = (data && Array.isArray(data.evaluations)) ? data.evaluations : [];
+        if (!rows.length) {
+            showFallback("Model evaluation is not available for this symbol yet.");
+            return;
+        }
+
+        var statusEl = document.getElementById("volatilityEvaluationStatus");
+        var contentEl = document.getElementById("volatilityEvaluationContent");
+        var tableBodyEl = document.getElementById("volatilityEvaluationTableBody");
+        var windowEl = document.getElementById("volatilityEvaluationWindow");
+        var bestEl = document.getElementById("volatilityEvaluationBest");
+
+        if (statusEl) {
+            statusEl.style.display = "none";
+        }
+        if (contentEl) {
+            contentEl.style.display = "block";
+        }
+        if (tableBodyEl) {
+            tableBodyEl.innerHTML = "";
+            rows.forEach(function(item) {
+                var tr = document.createElement("tr");
+
+                var modelTd = document.createElement("td");
+                modelTd.textContent = friendlyModelName(item.modelName);
+                tr.appendChild(modelTd);
+
+                var maeTd = document.createElement("td");
+                maeTd.textContent = formatMetric(item.mae);
+                tr.appendChild(maeTd);
+
+                var rmseTd = document.createElement("td");
+                rmseTd.textContent = formatMetric(item.rmse);
+                tr.appendChild(rmseTd);
+
+                var qlikeTd = document.createElement("td");
+                qlikeTd.textContent = formatMetric(item.qlike);
+                tr.appendChild(qlikeTd);
+
+                tableBodyEl.appendChild(tr);
+            });
+        }
+
+        if (windowEl) {
+            var ref = rows[0];
+            var start = ref.evalWindowStart || "—";
+            var end = ref.evalWindowEnd || "—";
+            var nObs = (ref.nObservations === null || ref.nObservations === undefined) ? "—" : ref.nObservations;
+            windowEl.textContent = "Evaluation window: " + start + " → " + end + " | n = " + nObs;
+        }
+
+        if (bestEl) {
+            bestEl.innerHTML = "";
+            [
+                bestModelLabel(rows, "mae", "Best MAE"),
+                bestModelLabel(rows, "rmse", "Best RMSE"),
+                bestModelLabel(rows, "qlike", "Best QLIKE")
+            ].forEach(function(text) {
+                var chip = document.createElement("span");
+                chip.className = "vol-eval-best-label";
+                chip.textContent = text;
+                bestEl.appendChild(chip);
+            });
+        }
+    }
+
+    fetch("/api/volatility/evaluation/latest?symbol=" + encodeURIComponent(symbol))
+        .then(function(response) {
+            if (response.status === 404) {
+                showFallback("Model evaluation is not available for this symbol yet.");
+                return null;
+            }
+            if (!response.ok) {
+                throw new Error("volatility evaluation fetch failed");
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            if (!data) { return; }
+            renderLatest(data);
+        })
+        .catch(function() {
+            showFallback("Model evaluation is not available for this symbol yet.");
         });
 })();
 </script>

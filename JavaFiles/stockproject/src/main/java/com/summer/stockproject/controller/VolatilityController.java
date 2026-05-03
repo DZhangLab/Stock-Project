@@ -2,6 +2,7 @@ package com.summer.stockproject.controller;
 
 import com.summer.stockproject.entity.DailyVolatility;
 import com.summer.stockproject.service.DailyVolatilityService;
+import com.summer.stockproject.service.VolatilityModelEvaluationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.summer.stockproject.entity.VolatilityModelEvaluation;
 
 /**
  * REST endpoints for the Phase 2 Daily Volatility MVP.
@@ -34,10 +36,15 @@ import java.util.Map;
 public class VolatilityController {
 
     private final DailyVolatilityService service;
+    private final VolatilityModelEvaluationService evaluationService;
 
     @Autowired
-    public VolatilityController(DailyVolatilityService service) {
+    public VolatilityController(
+            DailyVolatilityService service,
+            VolatilityModelEvaluationService evaluationService
+    ) {
         this.service = service;
+        this.evaluationService = evaluationService;
     }
 
     @GetMapping("/latest")
@@ -78,6 +85,43 @@ public class VolatilityController {
         response.put("series", series);
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/evaluation/latest")
+    public ResponseEntity<Map<String, Object>> getLatestEvaluation(
+            @RequestParam(defaultValue = "AAPL") String symbol) {
+        List<VolatilityModelEvaluation> rows = evaluationService.getLatestBySymbol(symbol);
+        if (rows.isEmpty()) {
+            Map<String, Object> notFound = new LinkedHashMap<>();
+            notFound.put("symbol", symbol == null ? "" : symbol.trim().toUpperCase());
+            notFound.put("message", "No volatility model evaluation rows found");
+            return ResponseEntity.status(404).body(notFound);
+        }
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("symbol", symbol == null ? "" : symbol.trim().toUpperCase());
+        response.put("count", rows.size());
+
+        List<Map<String, Object>> evaluations = new ArrayList<>(rows.size());
+        for (VolatilityModelEvaluation row : rows) {
+            evaluations.add(buildEvaluationResponse(row));
+        }
+        response.put("evaluations", evaluations);
+        return ResponseEntity.ok(response);
+    }
+
+    private Map<String, Object> buildEvaluationResponse(VolatilityModelEvaluation row) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("modelName", row.getModelName());
+        response.put("evalWindowStart", row.getEvalWindowStart() == null ? null : row.getEvalWindowStart().toString());
+        response.put("evalWindowEnd", row.getEvalWindowEnd() == null ? null : row.getEvalWindowEnd().toString());
+        response.put("evalWindowDays", row.getEvalWindowDays());
+        response.put("mae", row.getMae());
+        response.put("rmse", row.getRmse());
+        response.put("qlike", row.getQlike());
+        response.put("nObservations", row.getNObservations());
+        response.put("computedAt", row.getComputedAt() == null ? null : row.getComputedAt().toString());
+        return response;
     }
 
     private Map<String, Object> buildLatestResponse(DailyVolatility row) {
