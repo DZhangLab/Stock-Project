@@ -269,6 +269,64 @@
             font-weight: 600;
         }
 
+        /* Earnings event history card */
+        .earnings-event-card {
+            margin-bottom: 24px;
+        }
+        .earnings-event-subtitle {
+            margin: 0 0 12px 0;
+            font-size: 12px;
+            color: #4b5563;
+            line-height: 1.5;
+        }
+        .earnings-event-table {
+            margin-bottom: 0;
+            font-size: 12.5px;
+        }
+        .earnings-event-table th {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #64748b;
+            border-top: none !important;
+            white-space: nowrap;
+        }
+        .earnings-event-table td {
+            vertical-align: middle !important;
+            white-space: nowrap;
+        }
+        .earnings-event-table .earnings-event-excluded {
+            color: #8b95a5;
+            background: #f8fafc;
+        }
+        .earnings-event-quality {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: capitalize;
+        }
+        .earnings-event-quality-full {
+            background: #e6f6ea;
+            color: #1f6b37;
+        }
+        .earnings-event-quality-partial {
+            background: #fff4d6;
+            color: #8a5a00;
+        }
+        .earnings-event-quality-excluded {
+            background: #eef2f7;
+            color: #64748b;
+        }
+        .earnings-event-exclusion {
+            display: block;
+            margin-top: 3px;
+            font-size: 11px;
+            color: #64748b;
+            white-space: normal;
+        }
+
         /* Time range selector buttons */
         .range-btn-bar {
             display: flex;
@@ -488,6 +546,37 @@
                             </a>
                         </p>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <h3>Earnings Event History</h3>
+        <div class="panel panel-default earnings-event-card">
+            <div class="panel-body">
+                <p class="earnings-event-subtitle">
+                    Descriptive post-earnings reaction log. Returns are measured from the close before the first reaction day to later trading-day closes. This is not a prediction.
+                </p>
+                <p id="earningsEventStatus" class="text-muted" style="margin-bottom: 12px;">
+                    Loading earnings event outcomes...
+                </p>
+                <div id="earningsEventContent" style="display: none; overflow-x: auto;">
+                    <table class="table table-condensed table-bordered earnings-event-table">
+                        <thead>
+                            <tr>
+                                <th>Period</th>
+                                <th>Event Date</th>
+                                <th>First Reaction Date</th>
+                                <th>Surprise %</th>
+                                <th>AI Tone</th>
+                                <th>Ret 1D</th>
+                                <th>Ret 3D</th>
+                                <th>Ret 5D</th>
+                                <th>Ret 20D</th>
+                                <th>Quality</th>
+                            </tr>
+                        </thead>
+                        <tbody id="earningsEventTableBody"></tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -1261,6 +1350,151 @@ function shortSummary(value) {
             loadQuarter(this.value);
         }
     });
+})();
+</script>
+<script type="text/javascript">
+(function() {
+    if (!symbol) {
+        return;
+    }
+
+    function displayValue(value) {
+        if (value === null || value === undefined || value === "") {
+            return "—";
+        }
+        return String(value);
+    }
+
+    function formatPeriod(item) {
+        var label = item && (item.fiscalPeriodLabel || item.normalizedFiscalPeriodLabel);
+        return normalizeFiscalPeriod(displayValue(label));
+    }
+
+    function formatPercent(value, alreadyPct) {
+        if (value === null || value === undefined || value === "") {
+            return "—";
+        }
+        var num = Number(value);
+        if (isNaN(num)) {
+            return "—";
+        }
+        if (!alreadyPct) {
+            num = num * 100;
+        }
+        return num.toFixed(2) + "%";
+    }
+
+    function formatFriendly(value) {
+        if (value === null || value === undefined || value === "") {
+            return "—";
+        }
+        var text = String(value).replace(/_/g, " ").trim().toLowerCase();
+        if (!text) {
+            return "—";
+        }
+        return text.charAt(0).toUpperCase() + text.slice(1);
+    }
+
+    function showFallback(message) {
+        var statusEl = document.getElementById("earningsEventStatus");
+        var contentEl = document.getElementById("earningsEventContent");
+        if (statusEl) {
+            statusEl.textContent = message;
+            statusEl.className = "text-muted";
+            statusEl.style.display = "block";
+        }
+        if (contentEl) {
+            contentEl.style.display = "none";
+        }
+    }
+
+    function appendCell(rowEl, text) {
+        var td = document.createElement("td");
+        td.textContent = text;
+        rowEl.appendChild(td);
+        return td;
+    }
+
+    function renderQualityCell(rowEl, item) {
+        var td = document.createElement("td");
+        var flag = (item.qualityFlag || "").toLowerCase();
+        var badge = document.createElement("span");
+        badge.className = "earnings-event-quality earnings-event-quality-" + (flag || "partial");
+        badge.textContent = flag || "partial";
+        td.appendChild(badge);
+
+        if (flag === "excluded" && item.exclusionReason) {
+            var reason = document.createElement("span");
+            reason.className = "earnings-event-exclusion";
+            reason.textContent = formatFriendly(item.exclusionReason);
+            td.appendChild(reason);
+        }
+
+        rowEl.appendChild(td);
+    }
+
+    function renderEvents(items) {
+        var statusEl = document.getElementById("earningsEventStatus");
+        var contentEl = document.getElementById("earningsEventContent");
+        var tbody = document.getElementById("earningsEventTableBody");
+        if (!tbody) {
+            return;
+        }
+        tbody.innerHTML = "";
+
+        if (!Array.isArray(items) || !items.length) {
+            showFallback("No earnings event outcomes are available for this symbol yet.");
+            return;
+        }
+
+        if (statusEl) {
+            statusEl.style.display = "none";
+        }
+        if (contentEl) {
+            contentEl.style.display = "block";
+        }
+
+        items.forEach(function(item) {
+            var tr = document.createElement("tr");
+            if ((item.qualityFlag || "").toLowerCase() === "excluded") {
+                tr.className = "earnings-event-excluded";
+            }
+
+            appendCell(tr, formatPeriod(item));
+            appendCell(tr, displayValue(item.eventDate));
+            appendCell(tr, displayValue(item.firstReactionDate));
+            appendCell(tr, formatPercent(item.surprisePctAtEvent, true));
+            appendCell(tr, formatFriendly(item.aiOverallToneAtEvent));
+            appendCell(tr, formatPercent(item.ret1d, false));
+            appendCell(tr, formatPercent(item.ret3d, false));
+            appendCell(tr, formatPercent(item.ret5d, false));
+            appendCell(tr, formatPercent(item.ret20d, false));
+            renderQualityCell(tr, item);
+
+            tbody.appendChild(tr);
+        });
+    }
+
+    fetch("/api/earnings-events?symbol=" + encodeURIComponent(symbol))
+        .then(function(response) {
+            if (response.status === 404) {
+                showFallback("No earnings event outcomes are available for this symbol yet.");
+                return null;
+            }
+            if (!response.ok) {
+                throw new Error("earnings event fetch failed");
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            if (!data) {
+                return;
+            }
+            renderEvents(data.events || []);
+        })
+        .catch(function() {
+            showFallback("No earnings event outcomes are available for this symbol yet.");
+        });
 })();
 </script>
 <script type="text/javascript">
