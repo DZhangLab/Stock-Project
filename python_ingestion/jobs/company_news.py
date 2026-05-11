@@ -5,7 +5,7 @@ Supports any stock symbol (defaults to AAPL for backward compatibility).
 import argparse
 import hashlib
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional, Tuple
 
 from ..alpha_vantage import AlphaVantageClient, AlphaVantageNewsItem
@@ -91,6 +91,31 @@ class CompanyNewsCollector:
 
         return params_list
 
+    def _filter_by_published_date(
+        self,
+        items: List[AlphaVantageNewsItem],
+        start_date: Optional[date],
+        end_date: Optional[date],
+    ) -> List[AlphaVantageNewsItem]:
+        if not start_date and not end_date:
+            return items
+
+        filtered: List[AlphaVantageNewsItem] = []
+        for item in items:
+            published_at = self._parse_published_at(item.published_at)
+            if published_at is None:
+                logger.warning("Skipping news item with invalid published_at: %s", item.published_at)
+                continue
+
+            published_date = published_at.date()
+            if start_date and published_date < start_date:
+                continue
+            if end_date and published_date > end_date:
+                continue
+            filtered.append(item)
+
+        return filtered
+
     def persist_news(self, items: List[AlphaVantageNewsItem]) -> int:
         """Persist news items into company_news with dedup by (symbol, url_hash)."""
         if not items:
@@ -130,7 +155,12 @@ class CompanyNewsCollector:
             logger.error("Error persisting %s news: %s", self.symbol, e)
             return 0
 
-    def collect_news(self, limit: int = 20) -> int:
+    def collect_news(
+        self,
+        limit: int = 20,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> int:
         """Collect and persist company news for the configured symbol."""
         if not self.ensure_table():
             logger.error("Failed to ensure company_news table")
@@ -142,6 +172,11 @@ class CompanyNewsCollector:
                 logger.warning("No news returned from API for %s", self.symbol)
                 return 0
 
+            items = self._filter_by_published_date(items, start_date, end_date)
+            if not items:
+                logger.warning("No news within requested published date range for %s", self.symbol)
+                return 0
+
             return self.persist_news(items)
         except ValueError as e:
             logger.error("%s", e)
@@ -151,10 +186,24 @@ class CompanyNewsCollector:
             return 0
 
 
-def run_company_news_once(symbol: str = "AAPL", limit: int = 20) -> int:
+def run_company_news_once(
+    symbol: str = "AAPL",
+    limit: int = 20,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+) -> int:
     """Entry function for one-time company news ingestion."""
     collector = CompanyNewsCollector(symbol=symbol)
-    return collector.collect_news(limit=limit)
+    return collector.collect_news(limit=limit, start_date=start_date, end_date=end_date)
+
+
+def _parse_date_arg(label: str, value: Optional[str]) -> Optional[date]:
+    if value is None:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        raise SystemExit(f"{label} must be yyyy-mm-dd, got {value!r}")
 
 
 def main():
@@ -162,9 +211,19 @@ def main():
     parser = argparse.ArgumentParser(description="Collect and store company news")
     parser.add_argument("--symbol", default="AAPL", help="Stock symbol, default: AAPL")
     parser.add_argument("--limit", type=int, default=20, help="Maximum number of news items to fetch")
+    parser.add_argument("--start-date", help="Optional published date lower bound, yyyy-mm-dd.")
+    parser.add_argument("--end-date", help="Optional published date upper bound, yyyy-mm-dd.")
     args = parser.parse_args()
 
-    rows = run_company_news_once(symbol=args.symbol, limit=args.limit)
+    start_date = _parse_date_arg("--start-date", args.start_date)
+    end_date = _parse_date_arg("--end-date", args.end_date)
+
+    rows = run_company_news_once(
+        symbol=args.symbol,
+        limit=args.limit,
+        start_date=start_date,
+        end_date=end_date,
+    )
     print(f"{args.symbol} news ingestion complete. Affected rows: {rows}")
 
 
