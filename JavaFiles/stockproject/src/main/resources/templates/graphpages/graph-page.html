@@ -326,6 +326,98 @@
             color: #64748b;
             white-space: normal;
         }
+        .pead-aggregate-card {
+            margin-bottom: 24px;
+        }
+        .pead-aggregate-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+        .pead-aggregate-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 4px;
+        }
+        .pead-aggregate-subtitle {
+            margin: 0;
+            font-size: 12px;
+            color: #4b5563;
+            line-height: 1.5;
+            max-width: 720px;
+        }
+        .pead-aggregate-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .pead-aggregate-controls label {
+            margin: 0;
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .pead-aggregate-controls select {
+            min-width: 120px;
+            height: 30px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            background: #fff;
+            color: #1f2937;
+            font-size: 12px;
+            padding: 4px 8px;
+        }
+        .pead-aggregate-meta {
+            margin: 0 0 10px 0;
+            font-size: 12px;
+            color: #475569;
+        }
+        .pead-aggregate-warning {
+            margin: 0 0 10px 0;
+            padding: 8px 10px;
+            border-left: 3px solid #d97706;
+            background: #fff7ed;
+            color: #7c2d12;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+        .pead-aggregate-table {
+            margin-bottom: 0;
+            font-size: 12.5px;
+        }
+        .pead-aggregate-table th {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #64748b;
+            border-top: none !important;
+            white-space: nowrap;
+        }
+        .pead-aggregate-table td {
+            vertical-align: middle !important;
+            white-space: nowrap;
+        }
+        .pead-return-positive {
+            color: #1f6b37;
+            font-weight: 600;
+        }
+        .pead-return-negative {
+            color: #8a1f1f;
+            font-weight: 600;
+        }
+        .pead-bucket-note {
+            display: block;
+            margin-top: 3px;
+            font-size: 11px;
+            color: #64748b;
+            white-space: normal;
+        }
 
         /* Time range selector buttons */
         .range-btn-bar {
@@ -577,6 +669,61 @@
                         </thead>
                         <tbody id="earningsEventTableBody"></tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel panel-default pead-aggregate-card">
+            <div class="panel-body">
+                <div class="pead-aggregate-header">
+                    <div>
+                        <div class="pead-aggregate-title">PEAD Aggregate Analysis</div>
+                        <p class="pead-aggregate-subtitle">
+                            Descriptive aggregate post-earnings returns by event bucket. This is not a prediction or trading signal.
+                        </p>
+                    </div>
+                    <div class="pead-aggregate-controls">
+                        <label for="peadBucketSelect">Bucket</label>
+                        <select id="peadBucketSelect">
+                            <option value="tone">AI Tone</option>
+                            <option value="surprise">Surprise Bucket</option>
+                            <option value="quality">Quality</option>
+                        </select>
+                        <label for="peadWindowSelect">Window</label>
+                        <select id="peadWindowSelect">
+                            <option value="1d">1D</option>
+                            <option value="3d">3D</option>
+                            <option value="5d" selected>5D</option>
+                            <option value="20d">20D</option>
+                        </select>
+                        <label for="peadQualitySelect">Quality</label>
+                        <select id="peadQualitySelect">
+                            <option value="non_excluded">All non-excluded</option>
+                            <option value="full">Full only</option>
+                            <option value="partial">Partial included</option>
+                        </select>
+                    </div>
+                </div>
+                <p id="peadAggregateStatus" class="text-muted" style="margin-bottom: 12px;">
+                    Loading aggregate PEAD analysis...
+                </p>
+                <div id="peadAggregateContent" style="display: none;">
+                    <p id="peadAggregateWarning" class="pead-aggregate-warning" style="display: none;"></p>
+                    <p id="peadAggregateMeta" class="pead-aggregate-meta"></p>
+                    <div style="overflow-x: auto;">
+                        <table class="table table-condensed table-bordered pead-aggregate-table">
+                            <thead>
+                                <tr>
+                                    <th>Bucket</th>
+                                    <th>N</th>
+                                    <th>Mean Return</th>
+                                    <th>Median Return</th>
+                                    <th>95% Bootstrap CI</th>
+                                </tr>
+                            </thead>
+                            <tbody id="peadAggregateTableBody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1495,6 +1642,165 @@ function shortSummary(value) {
         .catch(function() {
             showFallback("No earnings event outcomes are available for this symbol yet.");
         });
+})();
+</script>
+<script type="text/javascript">
+(function() {
+    if (!symbol) {
+        return;
+    }
+
+    var bucketSelect = document.getElementById("peadBucketSelect");
+    var windowSelect = document.getElementById("peadWindowSelect");
+    var qualitySelect = document.getElementById("peadQualitySelect");
+    var statusEl = document.getElementById("peadAggregateStatus");
+    var contentEl = document.getElementById("peadAggregateContent");
+    var warningEl = document.getElementById("peadAggregateWarning");
+    var metaEl = document.getElementById("peadAggregateMeta");
+    var tbody = document.getElementById("peadAggregateTableBody");
+
+    if (!bucketSelect || !windowSelect || !qualitySelect || !tbody) {
+        return;
+    }
+
+    function formatBucketLabel(value) {
+        if (value === null || value === undefined || value === "") {
+            return "Missing";
+        }
+        var text = String(value).replace(/_/g, " ").trim().toLowerCase();
+        return text ? text.charAt(0).toUpperCase() + text.slice(1) : "Missing";
+    }
+
+    function formatReturn(value) {
+        if (value === null || value === undefined || value === "") {
+            return "—";
+        }
+        var num = Number(value);
+        if (isNaN(num)) {
+            return "—";
+        }
+        return (num * 100).toFixed(2) + "%";
+    }
+
+    function returnClass(value) {
+        var num = Number(value);
+        if (isNaN(num) || num === 0) {
+            return "";
+        }
+        return num > 0 ? "pead-return-positive" : "pead-return-negative";
+    }
+
+    function setStatus(message) {
+        if (statusEl) {
+            statusEl.textContent = message;
+            statusEl.className = "text-muted";
+            statusEl.style.display = "block";
+        }
+        if (contentEl) {
+            contentEl.style.display = "none";
+        }
+    }
+
+    function appendTextCell(rowEl, text, className) {
+        var td = document.createElement("td");
+        td.textContent = text;
+        if (className) {
+            td.className = className;
+        }
+        rowEl.appendChild(td);
+        return td;
+    }
+
+    function appendBucketCell(rowEl, item) {
+        var td = document.createElement("td");
+        td.textContent = formatBucketLabel(item.bucketName);
+        if (item.note) {
+            var note = document.createElement("span");
+            note.className = "pead-bucket-note";
+            note.textContent = item.note;
+            td.appendChild(note);
+        }
+        rowEl.appendChild(td);
+    }
+
+    function formatCi(item) {
+        if (!item || item.ciLow === null || item.ciLow === undefined || item.ciHigh === null || item.ciHigh === undefined) {
+            return "—";
+        }
+        return formatReturn(item.ciLow) + " to " + formatReturn(item.ciHigh);
+    }
+
+    function renderAggregate(data) {
+        var rows = data && Array.isArray(data.buckets) ? data.buckets : [];
+        tbody.innerHTML = "";
+
+        if (!rows.length) {
+            setStatus("No aggregate PEAD data is available for this selection.");
+            return;
+        }
+
+        if (statusEl) {
+            statusEl.style.display = "none";
+        }
+        if (contentEl) {
+            contentEl.style.display = "block";
+        }
+
+        if (warningEl) {
+            if (data.warning) {
+                warningEl.textContent = data.warning;
+                warningEl.style.display = "block";
+            } else {
+                warningEl.style.display = "none";
+            }
+        }
+
+        if (metaEl) {
+            metaEl.textContent =
+                "Window: " + String(data.window || "").toUpperCase() +
+                " | usable events: " + (data.usableEvents || 0) +
+                " of " + (data.totalEvents || 0) +
+                " | min bucket n: " + (data.minBucketSize || "—");
+        }
+
+        rows.forEach(function(item) {
+            var tr = document.createElement("tr");
+            appendBucketCell(tr, item);
+            appendTextCell(tr, item.n === null || item.n === undefined ? "—" : String(item.n));
+            appendTextCell(tr, formatReturn(item.meanReturn), returnClass(item.meanReturn));
+            appendTextCell(tr, formatReturn(item.medianReturn), returnClass(item.medianReturn));
+            appendTextCell(tr, formatCi(item));
+            tbody.appendChild(tr);
+        });
+    }
+
+    function loadAggregate() {
+        setStatus("Loading aggregate PEAD analysis...");
+        var params = new URLSearchParams();
+        params.set("bucket", bucketSelect.value);
+        params.set("window", windowSelect.value);
+        params.set("quality", qualitySelect.value);
+        params.set("symbol", symbol);
+
+        fetch("/api/earnings-events/aggregate?" + params.toString())
+            .then(function(response) {
+                if (!response.ok) {
+                    throw new Error("aggregate PEAD fetch failed");
+                }
+                return response.json();
+            })
+            .then(function(data) {
+                renderAggregate(data);
+            })
+            .catch(function() {
+                setStatus("No aggregate PEAD data is available for this selection.");
+            });
+    }
+
+    bucketSelect.addEventListener("change", loadAggregate);
+    windowSelect.addEventListener("change", loadAggregate);
+    qualitySelect.addEventListener("change", loadAggregate);
+    loadAggregate();
 })();
 </script>
 <script type="text/javascript">

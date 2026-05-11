@@ -44,6 +44,33 @@ public class EarningsEventController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/aggregate")
+    public ResponseEntity<Map<String, Object>> getAggregate(
+            @RequestParam(defaultValue = "tone") String bucket,
+            @RequestParam(defaultValue = "5d") String window,
+            @RequestParam(required = false) String symbol,
+            @RequestParam(required = false) String symbols,
+            @RequestParam(required = false) String quality,
+            @RequestParam(defaultValue = "5") int minBucketSize,
+            @RequestParam(defaultValue = "1000") int bootstrapSamples
+    ) {
+        try {
+            return ResponseEntity.ok(service.getAggregateAnalysis(
+                    bucket,
+                    window,
+                    symbol,
+                    symbols,
+                    quality,
+                    minBucketSize,
+                    bootstrapSamples
+            ));
+        } catch (IllegalArgumentException ex) {
+            Map<String, Object> badRequest = new LinkedHashMap<>();
+            badRequest.put("message", ex.getMessage());
+            return ResponseEntity.badRequest().body(badRequest);
+        }
+    }
+
     @GetMapping("/{symbol}/{period}")
     public ResponseEntity<Map<String, Object>> getBySymbolAndPeriod(
             @PathVariable String symbol,
