@@ -38,6 +38,10 @@ $(document).ready(function () {
                     d.getHours(), d.getMinutes(), d.getSeconds()) / 1000;
   }
 
+  var isDaily = (typeof dataGranularity !== "undefined" && dataGranularity === "daily");
+  var isMultiDay = (typeof dataGranularity !== "undefined"
+      && (dataGranularity === "30min" || dataGranularity === "sampled"));
+
   // =====================================================
   // 1. Transform backend data into Lightweight Charts format
   //
@@ -95,9 +99,6 @@ $(document).ready(function () {
   // 2. Calculate 7-period Simple Moving Average
   // =====================================================
 
-  var isDaily = (typeof dataGranularity !== "undefined" && dataGranularity === "daily");
-  var isMultiDay = (typeof dataGranularity !== "undefined"
-      && (dataGranularity === "30min" || dataGranularity === "sampled"));
   // SMA periods: daily=20 bars (~1 month), 1W 10-min=20 bars (~3.3 hours), 1D minute=7
   var SMA_PERIOD = isDaily ? 20 : isMultiDay ? 20 : 7;
 
@@ -329,11 +330,28 @@ $(document).ready(function () {
 
   var rangeFrom = (typeof selectedStart !== "undefined") ? parseETDisplayString(selectedStart) : null;
   var rangeTo   = (typeof selectedEnd   !== "undefined") ? parseETDisplayString(selectedEnd)   : null;
+  var hasRequestedIntradayRange = !isDaily && !isMultiDay && rangeFrom && rangeTo && rangeFrom < rangeTo;
+
+  if (hasRequestedIntradayRange) {
+    var viewportAnchorSeries = chart.addLineSeries({
+      color: "rgba(0, 0, 0, 0)",
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false
+    });
+    viewportAnchorSeries.setData([{ time: rangeFrom }, { time: rangeTo }]);
+  }
 
   if (isDaily || isMultiDay) {
     chart.timeScale().fitContent();
-  } else if (rangeFrom && rangeTo && rangeFrom < rangeTo) {
+  } else if (hasRequestedIntradayRange) {
     chart.timeScale().setVisibleRange({ from: rangeFrom, to: rangeTo });
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(function() {
+        chart.timeScale().setVisibleRange({ from: rangeFrom, to: rangeTo });
+      });
+    }
   } else {
     chart.timeScale().fitContent();
   }
