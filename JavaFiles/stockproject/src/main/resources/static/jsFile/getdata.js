@@ -17,25 +17,33 @@ $(document).ready(function () {
   // =====================================================
   // Timezone / display-coordinate helper
   //
-  // Lightweight Charts renders timestamps as UTC.
-  // The backend stores ET wall-clock times in the DB and
-  // sends epoch millis produced by java.sql.Timestamp
-  // .getTime(), which interprets the DB value in the
-  // JVM's system timezone.  Since the browser runs on
-  // the same machine, its local timezone matches the JVM.
-  //
-  // To recover the original DB wall-clock value (ET) we
-  // extract the browser-local hours/minutes/seconds and
-  // pack them into a fake-UTC epoch.  This makes the
-  // x-axis read the same values shown in the page header
-  // (which are also formatted in JVM-local time by
-  // SimpleDateFormat).
+  // Lightweight Charts renders timestamps as UTC.  Intraday market
+  // timestamps arrive as timezone-free ET wall-clock strings from the
+  // backend, so we parse those fields directly into a fake-UTC chart
+  // coordinate.  This avoids browser/JVM timezone shifts.
   // =====================================================
 
-  function toDisplaySeconds(epochMs) {
-    var d = new Date(epochMs);
-    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(),
-                    d.getHours(), d.getMinutes(), d.getSeconds()) / 1000;
+  function parseETDisplayString(str) {
+    if (!str) return null;
+    var p = String(str).trim().split(/[- :T]/);
+    if (p.length < 5) return null;
+    var year = parseInt(p[0], 10);
+    var month = parseInt(p[1], 10);
+    var day = parseInt(p[2], 10);
+    var hour = parseInt(p[3], 10);
+    var minute = parseInt(p[4], 10);
+    var second = p[5] ? parseInt(p[5], 10) : 0;
+    if ([year, month, day, hour, minute, second].some(function(v) { return isNaN(v); })) {
+      return null;
+    }
+    return Date.UTC(
+      year,
+      month - 1,
+      day,
+      hour,
+      minute,
+      second
+    ) / 1000;
   }
 
   var isDaily = (typeof dataGranularity !== "undefined" && dataGranularity === "daily");
@@ -47,7 +55,7 @@ $(document).ready(function () {
   //
   //    Backend provides (via Thymeleaf):
   //      apple[i]     = [open, high, low, close]
-  //      timepoint[i] = epoch millis (JVM-local interpretation of DB timestamps)
+  //      timepoint[i] = intraday ET wall-clock string, or daily epoch millis
   //
   //    The backend stores OHLC columns per minute bar, but
   //    in practice the source data provides a single price
@@ -59,10 +67,13 @@ $(document).ready(function () {
 
   for (var i = 0; i < timepoint.length; i++) {
     // Daily data: timestamps are already midnight UTC — use directly.
-    // Intraday: convert JVM-local millis to fake-UTC display seconds.
+    // Intraday: parse ET wall-clock strings to fake-UTC chart seconds.
     var displaySec = isDaily
         ? Math.floor(timepoint[i] / 1000)
-        : toDisplaySeconds(timepoint[i]);
+        : parseETDisplayString(timepoint[i]);
+    if (displaySec === null) {
+      continue;
+    }
     var c = Number(apple[i][3]); // close price
     rawData.push({ time: displaySec, value: c });
   }
@@ -83,11 +94,9 @@ $(document).ready(function () {
   // --- Sort ascending by time (Lightweight Charts requirement) ---
   lineData.sort(function (a, b) { return a.time - b.time; });
 
-  // --- Diagnostic logging ---
-  console.log("Chart data: " + rawData.length + " raw, " +
-              lineData.length + " after dedup");
-  console.log("First 5:", lineData.slice(0, 5));
-  console.log("Last 5:",  lineData.slice(-5));
+  if (!lineData.length) {
+    return;
+  }
 
   // --- Collect close values for SMA ---
   var closeValues = [];
@@ -116,7 +125,6 @@ $(document).ready(function () {
   }
 
   var smaData = calculateSMA(closeValues, SMA_PERIOD);
-  console.log("SMA data points: " + smaData.length);
 
   // =====================================================
   // 3. Create chart (English locale, ET display)
@@ -313,20 +321,6 @@ $(document).ready(function () {
   // the chart will honestly show the empty region instead
   // of silently shrinking.
   // =====================================================
-
-  function parseETDisplayString(str) {
-    if (!str) return null;
-    var p = str.split(/[- :]/);
-    if (p.length < 5) return null;
-    return Date.UTC(
-      parseInt(p[0], 10),
-      parseInt(p[1], 10) - 1,
-      parseInt(p[2], 10),
-      parseInt(p[3], 10),
-      parseInt(p[4], 10),
-      p[5] ? parseInt(p[5], 10) : 0
-    ) / 1000;
-  }
 
   var rangeFrom = (typeof selectedStart !== "undefined") ? parseETDisplayString(selectedStart) : null;
   var rangeTo   = (typeof selectedEnd   !== "undefined") ? parseETDisplayString(selectedEnd)   : null;

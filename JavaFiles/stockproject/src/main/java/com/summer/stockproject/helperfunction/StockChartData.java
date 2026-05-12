@@ -3,14 +3,18 @@ package com.summer.stockproject.helperfunction;
 import com.summer.stockproject.entity.IntradayBar;
 
 import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
 public class StockChartData {
 
+    private static final DateTimeFormatter WALL_CLOCK_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
     private List<ArrayList<Double>> price;
 
-    private List<Long> dateInSecond;
+    private List<String> dateInSecond;
 
     public StockChartData(List<IntradayBar> dataList) {
         price = new ArrayList<>();
@@ -22,7 +26,7 @@ public class StockChartData {
             templist.add(toDouble(bar.getMinuteLow()));
             templist.add(toDouble(bar.getMinuteClose()));
             price.add(templist);
-            dateInSecond.add(bar.getTimePoint().getTime());
+            dateInSecond.add(bar.getTimePoint().toLocalDateTime().format(WALL_CLOCK_FORMAT));
       }
     }
 
@@ -34,7 +38,7 @@ public class StockChartData {
         return price;
     }
 
-    public List<Long> getDateInSecond() {
+    public List<String> getDateInSecond() {
         return dateInSecond;
     }
 }
