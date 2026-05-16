@@ -35,6 +35,7 @@ realized_vol_* while preserving the HAR fit on variance scale.
 import argparse
 import logging
 from datetime import datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..analytics.har_rv import (
@@ -48,6 +49,10 @@ from ..db import get_db_manager
 
 logger = logging.getLogger(__name__)
 
+QLIKE_DECIMAL_SCALE = Decimal("0.00000001")
+QLIKE_DECIMAL_MAX = Decimal("9999999999999999.99999999")
+QLIKE_DECIMAL_MIN = -QLIKE_DECIMAL_MAX
+
 
 CREATE_EVAL_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS volatility_model_evaluation (
@@ -59,7 +64,7 @@ CREATE TABLE IF NOT EXISTS volatility_model_evaluation (
     eval_window_days INT NOT NULL,
     mae DECIMAL(12, 8) NULL,
     rmse DECIMAL(12, 8) NULL,
-    qlike DECIMAL(12, 8) NULL,
+    qlike DECIMAL(24, 8) NULL,
     n_observations INT NOT NULL,
     computed_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -119,6 +124,58 @@ def _ensure_eval_table(db) -> None:
     db.execute(CREATE_EVAL_TABLE_SQL)
 
 
+def _sanitize_qlike(
+    value: Optional[float],
+    *,
+    symbol: str,
+    model_name: str,
+    eval_window_end,
+) -> Optional[Decimal]:
+    if value is None:
+        logger.warning(
+            "%s %s %s: QLIKE is None; storing NULL",
+            symbol,
+            model_name,
+            eval_window_end,
+        )
+        return None
+
+    try:
+        qlike = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        logger.warning(
+            "%s %s %s: QLIKE %r is not numeric; storing NULL",
+            symbol,
+            model_name,
+            eval_window_end,
+            value,
+        )
+        return None
+
+    if not qlike.is_finite():
+        logger.warning(
+            "%s %s %s: QLIKE %r is not finite; storing NULL",
+            symbol,
+            model_name,
+            eval_window_end,
+            value,
+        )
+        return None
+
+    rounded = qlike.quantize(QLIKE_DECIMAL_SCALE, rounding=ROUND_HALF_UP)
+    if rounded < QLIKE_DECIMAL_MIN or rounded > QLIKE_DECIMAL_MAX:
+        logger.warning(
+            "%s %s %s: QLIKE %s exceeds DECIMAL(24,8) range; storing NULL",
+            symbol,
+            model_name,
+            eval_window_end,
+            rounded,
+        )
+        return None
+
+    return rounded
+
+
 def _persist_evaluations(db, symbol: str, result: SymbolModelResult) -> int:
     if not result.evaluations:
         return 0
@@ -132,7 +189,12 @@ def _persist_evaluations(db, symbol: str, result: SymbolModelResult) -> int:
             evaluation.eval_window_days,
             evaluation.mae,
             evaluation.rmse,
-            evaluation.qlike,
+            _sanitize_qlike(
+                evaluation.qlike,
+                symbol=symbol,
+                model_name=evaluation.model_name,
+                eval_window_end=evaluation.eval_window_end,
+            ),
             evaluation.n_observations,
             now,
         )
