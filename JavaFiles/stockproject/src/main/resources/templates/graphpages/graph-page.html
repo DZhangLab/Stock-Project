@@ -535,9 +535,10 @@
                 Loading model evaluation...
             </p>
             <div id="volatilityEvaluationContent" style="display: none;">
-                <div class="vol-eval-title">Volatility Model Evaluation</div>
+                <div class="vol-eval-title">Volatility Forecast &amp; Backtest Performance</div>
                 <p class="vol-eval-subtitle">
-                    Experimental one-day-ahead realized-volatility forecast. This evaluates volatility magnitude, not price direction.
+                    This section shows each model&rsquo;s latest one-day-ahead volatility forecast together with its recent historical backtest performance.
+                    These forecasts estimate volatility magnitude, not whether the stock price will go up or down.
                 </p>
                 <p class="vol-eval-helper">
                     Lower MAE, RMSE, and QLIKE indicate better out-of-sample volatility forecast performance.
@@ -548,6 +549,9 @@
                         <thead>
                             <tr>
                                 <th>Model</th>
+                                <th>Latest Forecast</th>
+                                <th>Forecast As Of</th>
+                                <th>Target Date</th>
                                 <th>MAE</th>
                                 <th>RMSE</th>
                                 <th>QLIKE</th>
@@ -992,10 +996,10 @@ function shortSummary(value) {
 <script type="text/javascript">
 /* ── Volatility Model Evaluation card (Phase 3B) ───────────────────
  *
- * Fetches /api/volatility/evaluation/latest and renders the latest
- * walk-forward evaluation metrics for HAR-RV and the baseline models.
- * This panel evaluates volatility forecast quality only; it does not
- * imply any price-direction prediction.
+ * Fetches /api/volatility/model-summary/latest and renders each model's
+ * latest one-day-ahead volatility forecast alongside recent walk-forward
+ * backtest metrics. This panel evaluates volatility magnitude only; it does
+ * not imply any price-direction prediction.
  */
 (function() {
     if (!symbol) {
@@ -1026,6 +1030,24 @@ function shortSummary(value) {
         return num.toFixed(4);
     }
 
+    function formatForecastPercent(value) {
+        if (value === null || value === undefined || value === "") {
+            return "—";
+        }
+        var num = Number(value);
+        if (isNaN(num)) {
+            return "—";
+        }
+        return (num * 100).toFixed(2) + "%";
+    }
+
+    function formatDate(value) {
+        if (value === null || value === undefined || value === "") {
+            return "—";
+        }
+        return String(value);
+    }
+
     function friendlyModelName(modelName) {
         if (modelName === "har_rv_v1") {
             return "HAR-RV";
@@ -1037,6 +1059,13 @@ function shortSummary(value) {
             return "Yesterday RV baseline";
         }
         return modelName || "Unknown";
+    }
+
+    function displayModelName(item) {
+        if (item && item.displayName) {
+            return item.displayName;
+        }
+        return friendlyModelName(item ? item.modelName : null);
     }
 
     function metricValue(item, key) {
@@ -1055,16 +1084,16 @@ function shortSummary(value) {
                 continue;
             }
             if (best === null || value < best.value) {
-                best = { value: value, modelName: friendlyModelName(items[i].modelName) };
+                best = { value: value, modelName: displayModelName(items[i]) };
             }
         }
         return best ? (label + ': ' + best.modelName) : (label + ': —');
     }
 
     function renderLatest(data) {
-        var rows = (data && Array.isArray(data.evaluations)) ? data.evaluations : [];
+        var rows = (data && Array.isArray(data.models)) ? data.models : [];
         if (!rows.length) {
-            showFallback("Model evaluation is not available for this symbol yet.");
+            showFallback("Volatility model summary is not available for this symbol yet.");
             return;
         }
 
@@ -1086,8 +1115,20 @@ function shortSummary(value) {
                 var tr = document.createElement("tr");
 
                 var modelTd = document.createElement("td");
-                modelTd.textContent = friendlyModelName(item.modelName);
+                modelTd.textContent = displayModelName(item);
                 tr.appendChild(modelTd);
+
+                var forecastTd = document.createElement("td");
+                forecastTd.textContent = formatForecastPercent(item.forecastVolAnnualized);
+                tr.appendChild(forecastTd);
+
+                var asOfTd = document.createElement("td");
+                asOfTd.textContent = formatDate(item.asOfDate);
+                tr.appendChild(asOfTd);
+
+                var targetTd = document.createElement("td");
+                targetTd.textContent = formatDate(item.targetDate);
+                tr.appendChild(targetTd);
 
                 var maeTd = document.createElement("td");
                 maeTd.textContent = formatMetric(item.mae);
@@ -1128,14 +1169,14 @@ function shortSummary(value) {
         }
     }
 
-    fetch("/api/volatility/evaluation/latest?symbol=" + encodeURIComponent(symbol))
+    fetch("/api/volatility/model-summary/latest?symbol=" + encodeURIComponent(symbol))
         .then(function(response) {
             if (response.status === 404) {
-                showFallback("Model evaluation is not available for this symbol yet.");
+                showFallback("Volatility model summary is not available for this symbol yet.");
                 return null;
             }
             if (!response.ok) {
-                throw new Error("volatility evaluation fetch failed");
+                throw new Error("volatility model summary fetch failed");
             }
             return response.json();
         })
@@ -1144,7 +1185,7 @@ function shortSummary(value) {
             renderLatest(data);
         })
         .catch(function() {
-            showFallback("Model evaluation is not available for this symbol yet.");
+            showFallback("Volatility model summary is not available for this symbol yet.");
         });
 })();
 </script>

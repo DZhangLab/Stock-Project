@@ -40,6 +40,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..analytics.har_rv import (
     HAR_MODEL_NAME,
+    ModelForecast,
     SymbolModelResult,
     run_symbol_har_evaluation,
     summarize_evaluations,
@@ -74,6 +75,28 @@ CREATE TABLE IF NOT EXISTS volatility_model_evaluation (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+CREATE_FORECAST_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS volatility_model_forecast (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    symbol VARCHAR(16) NOT NULL,
+    model_name VARCHAR(64) NOT NULL,
+    as_of_date DATE NOT NULL,
+    target_date DATE NOT NULL,
+    forecast_vol_annualized DECIMAL(18, 8) NULL,
+    forecast_variance DECIMAL(18, 12) NULL,
+    actual_vol_annualized DECIMAL(18, 8) NULL,
+    actual_variance DECIMAL(18, 12) NULL,
+    model_version VARCHAR(64) NULL,
+    computed_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_vol_forecast_symbol_model_dates (symbol, model_name, as_of_date, target_date),
+    INDEX idx_vol_forecast_symbol_asof (symbol, as_of_date),
+    INDEX idx_vol_forecast_symbol_model_asof (symbol, model_name, as_of_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
 UPSERT_EVAL_SQL = """
 INSERT INTO volatility_model_evaluation (
     symbol, model_name, eval_window_start, eval_window_end,
@@ -87,6 +110,23 @@ ON DUPLICATE KEY UPDATE
     qlike = VALUES(qlike),
     n_observations = VALUES(n_observations),
     computed_at = VALUES(computed_at)
+"""
+
+UPSERT_FORECAST_SQL = """
+INSERT INTO volatility_model_forecast (
+    symbol, model_name, as_of_date, target_date,
+    forecast_vol_annualized, forecast_variance,
+    actual_vol_annualized, actual_variance,
+    model_version, computed_at
+) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE
+    forecast_vol_annualized = VALUES(forecast_vol_annualized),
+    forecast_variance = VALUES(forecast_variance),
+    actual_vol_annualized = VALUES(actual_vol_annualized),
+    actual_variance = VALUES(actual_variance),
+    model_version = VALUES(model_version),
+    computed_at = VALUES(computed_at),
+    updated_at = CURRENT_TIMESTAMP
 """
 
 CLEAR_HAR_SQL = """
@@ -122,6 +162,62 @@ def _list_all_symbols(db) -> List[str]:
 
 def _ensure_eval_table(db) -> None:
     db.execute(CREATE_EVAL_TABLE_SQL)
+
+
+def _ensure_forecast_table(db) -> None:
+    db.execute(CREATE_FORECAST_TABLE_SQL)
+
+
+def _sanitize_decimal(
+    value: Optional[float],
+    *,
+    scale: str,
+    max_abs: str,
+    field_name: str,
+    symbol: str,
+    model_name: str,
+    as_of_date,
+) -> Optional[Decimal]:
+    if value is None:
+        return None
+
+    try:
+        number = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        logger.warning(
+            "%s %s %s: %s %r is not numeric; storing NULL",
+            symbol,
+            model_name,
+            as_of_date,
+            field_name,
+            value,
+        )
+        return None
+
+    if not number.is_finite():
+        logger.warning(
+            "%s %s %s: %s %r is not finite; storing NULL",
+            symbol,
+            model_name,
+            as_of_date,
+            field_name,
+            value,
+        )
+        return None
+
+    rounded = number.quantize(Decimal(scale), rounding=ROUND_HALF_UP)
+    limit = Decimal(max_abs)
+    if rounded < -limit or rounded > limit:
+        logger.warning(
+            "%s %s %s: %s %s exceeds DECIMAL range; storing NULL",
+            symbol,
+            model_name,
+            as_of_date,
+            field_name,
+            rounded,
+        )
+        return None
+    return rounded
 
 
 def _sanitize_qlike(
@@ -226,6 +322,99 @@ def _persist_har_forecasts(
     return {"cleared": int(cleared), "written": written}
 
 
+def _all_model_forecasts(result: SymbolModelResult) -> List[ModelForecast]:
+    return [
+        *result.forecasts_rolling21_baseline,
+        *result.forecasts_yesterday_baseline,
+        *result.forecasts_har,
+    ]
+
+
+def _persist_model_forecasts(
+    db,
+    symbol: str,
+    result: SymbolModelResult,
+    model_version: str,
+) -> int:
+    forecasts = _all_model_forecasts(result)
+    if not forecasts:
+        return 0
+
+    now = datetime.now()
+    params = []
+    skipped = 0
+    for forecast in forecasts:
+        if forecast.as_of_date is None or forecast.target_date is None:
+            skipped += 1
+            logger.warning(
+                "%s %s: skipping forecast with missing dates",
+                symbol,
+                forecast.model_name,
+            )
+            continue
+
+        params.append(
+            (
+                symbol,
+                forecast.model_name,
+                forecast.as_of_date,
+                forecast.target_date,
+                _sanitize_decimal(
+                    forecast.forecast_vol_annualized,
+                    scale="0.00000001",
+                    max_abs="9999999999.99999999",
+                    field_name="forecast_vol_annualized",
+                    symbol=symbol,
+                    model_name=forecast.model_name,
+                    as_of_date=forecast.as_of_date,
+                ),
+                _sanitize_decimal(
+                    forecast.forecast_variance,
+                    scale="0.000000000001",
+                    max_abs="999999.999999999999",
+                    field_name="forecast_variance",
+                    symbol=symbol,
+                    model_name=forecast.model_name,
+                    as_of_date=forecast.as_of_date,
+                ),
+                _sanitize_decimal(
+                    forecast.actual_vol_annualized,
+                    scale="0.00000001",
+                    max_abs="9999999999.99999999",
+                    field_name="actual_vol_annualized",
+                    symbol=symbol,
+                    model_name=forecast.model_name,
+                    as_of_date=forecast.as_of_date,
+                ),
+                _sanitize_decimal(
+                    forecast.actual_variance,
+                    scale="0.000000000001",
+                    max_abs="999999.999999999999",
+                    field_name="actual_variance",
+                    symbol=symbol,
+                    model_name=forecast.model_name,
+                    as_of_date=forecast.as_of_date,
+                ),
+                model_version,
+                now,
+            )
+        )
+
+    if skipped:
+        logger.info("%s: skipped %d model forecast rows", symbol, skipped)
+    if not params:
+        return 0
+
+    written = db.executemany(UPSERT_FORECAST_SQL, params)
+    logger.info(
+        "%s: computed %d model forecasts, upserted rowcount=%d",
+        symbol,
+        len(params),
+        written,
+    )
+    return written
+
+
 def run_for_symbols(
     symbols: Sequence[str],
     train_window: int = 180,
@@ -235,6 +424,7 @@ def run_for_symbols(
 ) -> Dict[str, dict]:
     db = get_db_manager()
     _ensure_eval_table(db)
+    _ensure_forecast_table(db)
 
     summary: Dict[str, dict] = {}
     for symbol in symbols:
@@ -257,24 +447,43 @@ def run_for_symbols(
                 result.reason,
             )
             if dry_run:
-                write_info = {"cleared": 0, "written": 0, "eval_rows": 0}
+                write_info = {
+                    "cleared": 0,
+                    "written": 0,
+                    "eval_rows": 0,
+                    "model_forecast_rows": 0,
+                }
             else:
                 clear_count = int(db.execute(CLEAR_HAR_SQL, (symbol,)) or 0)
-                write_info = {"cleared": clear_count, "written": 0, "eval_rows": 0}
+                write_info = {
+                    "cleared": clear_count,
+                    "written": 0,
+                    "eval_rows": 0,
+                    "model_forecast_rows": 0,
+                }
         else:
             if dry_run:
+                model_forecasts = len(_all_model_forecasts(result))
                 write_info = {
                     "cleared": 0,
                     "written": len(result.forecasts_har),
                     "eval_rows": len(result.evaluations),
+                    "model_forecast_rows": model_forecasts,
                 }
             else:
                 har_write = _persist_har_forecasts(db, symbol, result, model_version)
                 eval_written = _persist_evaluations(db, symbol, result)
+                model_forecast_written = _persist_model_forecasts(
+                    db,
+                    symbol,
+                    result,
+                    model_version,
+                )
                 write_info = {
                     "cleared": har_write["cleared"],
                     "written": har_write["written"],
                     "eval_rows": eval_written,
+                    "model_forecast_rows": model_forecast_written,
                 }
             if har_eval is not None:
                 logger.info(
@@ -293,6 +502,7 @@ def run_for_symbols(
             "returns": len(returns_by_date),
             "har_observations": result.observations_total,
             "forecasts": len(result.forecasts_har),
+            "model_forecasts": len(_all_model_forecasts(result)),
             "evaluation_count": len(result.evaluations),
             "writes": write_info,
             "evaluations": {
@@ -385,6 +595,7 @@ def main():
     eligible = sum(1 for item in summary.values() if item["eligible"])
     skipped = len(summary) - eligible
     total_forecasts = sum(item["forecasts"] for item in summary.values())
+    total_model_forecasts = sum(item["model_forecasts"] for item in summary.values())
 
     print(f"\n{'=' * 60}")
     print(f"volatility_evaluation {'(dry run) ' if args.dry_run else ''}complete.")
@@ -392,6 +603,7 @@ def main():
     print(f"  Eligible:          {eligible}")
     print(f"  Skipped:           {skipped}")
     print(f"  HAR forecasts:     {total_forecasts}")
+    print(f"  Model forecasts:   {total_model_forecasts}")
     print(f"  Train window:      {args.train_window}")
     print(f"  Eval window:       {args.eval_window}")
     print(f"  Model version:     {args.model_version}")

@@ -115,6 +115,8 @@ class SymbolModelResult:
     reason: Optional[str]
     observations_total: int
     forecasts_har: List[ModelForecast]
+    forecasts_yesterday_baseline: List[ModelForecast]
+    forecasts_rolling21_baseline: List[ModelForecast]
     evaluations: List[ModelEvaluation]
     latest_fit: Optional[HarModelFit]
 
@@ -273,6 +275,8 @@ def run_symbol_har_evaluation(
             ),
             observations_total=len(observations),
             forecasts_har=[],
+            forecasts_yesterday_baseline=[],
+            forecasts_rolling21_baseline=[],
             evaluations=[],
             latest_fit=None,
         )
@@ -320,6 +324,8 @@ def run_symbol_har_evaluation(
         reason=None,
         observations_total=len(observations),
         forecasts_har=har_forecasts,
+        forecasts_yesterday_baseline=baseline_yday,
+        forecasts_rolling21_baseline=baseline_roll21,
         evaluations=[e for e in evaluations if e is not None],
         latest_fit=latest_fit,
     )
