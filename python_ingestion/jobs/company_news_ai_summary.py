@@ -5,7 +5,7 @@ Generic per-symbol structure; current rollout scope is AAPL-first by default.
 import argparse
 import json
 import logging
-from datetime import date
+from datetime import date, datetime, time
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..config import load_config
@@ -41,24 +41,23 @@ class CompanyNewsAISummaryCollector:
     def _normalize_symbol(symbol: str) -> str:
         return (symbol or "").strip().upper()
 
-    def _fetch_recent_news_rows(self, symbol: str, limit: int) -> List[Dict[str, Any]]:
-        sql = """
-        SELECT
-            id,
-            symbol,
-            title,
-            summary,
-            url,
-            source,
-            published_at,
-            av_overall_sentiment_score,
-            av_overall_sentiment_label
-        FROM company_news
-        WHERE symbol = %s
-        ORDER BY published_at DESC, id DESC
-        LIMIT %s
-        """
-        rows = self.db.execute(sql, (symbol, limit)) or []
+    @staticmethod
+    def _parse_analysis_date(value: Optional[str]) -> Optional[date]:
+        if value is None:
+            return None
+        try:
+            return date.fromisoformat(value)
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(
+                "analysis date must use YYYY-MM-DD format"
+            ) from exc
+
+    @staticmethod
+    def _analysis_date_cutoff(analysis_date: date) -> datetime:
+        return datetime.combine(analysis_date, time(23, 59, 59))
+
+    @staticmethod
+    def _rows_to_news_dicts(rows: List[Tuple]) -> List[Dict[str, Any]]:
         result: List[Dict[str, Any]] = []
         for row in rows:
             if not isinstance(row, tuple) or len(row) != 9:
@@ -77,6 +76,52 @@ class CompanyNewsAISummaryCollector:
                 }
             )
         return result
+
+    def _fetch_recent_news_rows(self, symbol: str, limit: int) -> List[Dict[str, Any]]:
+        sql = """
+        SELECT
+            id,
+            symbol,
+            title,
+            summary,
+            url,
+            source,
+            published_at,
+            av_overall_sentiment_score,
+            av_overall_sentiment_label
+        FROM company_news
+        WHERE symbol = %s
+        ORDER BY published_at DESC, id DESC
+        LIMIT %s
+        """
+        rows = self.db.execute(sql, (symbol, limit)) or []
+        return self._rows_to_news_dicts(rows)
+
+    def _fetch_recent_news_rows_as_of(
+        self,
+        symbol: str,
+        limit: int,
+        cutoff_datetime: datetime,
+    ) -> List[Dict[str, Any]]:
+        sql = """
+        SELECT
+            id,
+            symbol,
+            title,
+            summary,
+            url,
+            source,
+            published_at,
+            av_overall_sentiment_score,
+            av_overall_sentiment_label
+        FROM company_news
+        WHERE symbol = %s
+          AND published_at <= %s
+        ORDER BY published_at DESC, id DESC
+        LIMIT %s
+        """
+        rows = self.db.execute(sql, (symbol, cutoff_datetime, limit)) or []
+        return self._rows_to_news_dicts(rows)
 
     @staticmethod
     def _build_usable_news(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -261,7 +306,23 @@ class CompanyNewsAISummaryCollector:
         self.db.execute(sql, params)
         return 1
 
-    def collect_summary(self, symbol: str = "AAPL", limit: int = MAX_NEWS_ROWS) -> int:
+    def _summary_exists(self, symbol: str, analysis_date: date) -> bool:
+        sql = """
+        SELECT id
+        FROM company_news_ai_summary
+        WHERE symbol = %s
+          AND analysis_date = %s
+        LIMIT 1
+        """
+        rows = self.db.execute(sql, (symbol, analysis_date)) or []
+        return bool(rows)
+
+    def collect_summary(
+        self,
+        symbol: str = "AAPL",
+        limit: int = MAX_NEWS_ROWS,
+        analysis_date: Optional[date] = None,
+    ) -> int:
         normalized_symbol = self._normalize_symbol(symbol)
         if not normalized_symbol:
             logger.error("Symbol is required")
@@ -270,14 +331,48 @@ class CompanyNewsAISummaryCollector:
             logger.error("Limit must be at least %s", self.MIN_USABLE_NEWS_ROWS)
             return 0
         limit = min(limit, self.MAX_NEWS_ROWS)
+        summary_analysis_date = analysis_date or date.today()
+        analysis_date_mode = "explicit" if analysis_date else "default"
+        cutoff_datetime = (
+            self._analysis_date_cutoff(analysis_date)
+            if analysis_date is not None
+            else None
+        )
 
         if not self.ensure_table():
             logger.error("Failed to ensure company_news_ai_summary table")
             return 0
 
         try:
-            raw_news_rows = self._fetch_recent_news_rows(normalized_symbol, limit)
+            logger.info(
+                "Starting company news AI summary: symbol=%s analysis_date=%s mode=%s limit=%s",
+                normalized_symbol,
+                summary_analysis_date,
+                analysis_date_mode,
+                limit,
+            )
+            if cutoff_datetime is not None:
+                logger.info(
+                    "Using article cutoff for company news AI summary: symbol=%s cutoff=%s",
+                    normalized_symbol,
+                    cutoff_datetime,
+                )
+                raw_news_rows = self._fetch_recent_news_rows_as_of(
+                    normalized_symbol,
+                    limit,
+                    cutoff_datetime,
+                )
+            else:
+                raw_news_rows = self._fetch_recent_news_rows(normalized_symbol, limit)
+
             usable_articles = self._build_usable_news(raw_news_rows)
+            logger.info(
+                "Selected source articles for company news AI summary: symbol=%s analysis_date=%s selected=%s usable=%s",
+                normalized_symbol,
+                summary_analysis_date,
+                len(raw_news_rows),
+                len(usable_articles),
+            )
             if len(usable_articles) < self.MIN_USABLE_NEWS_ROWS:
                 logger.warning(
                     "Too few usable news rows for %s: found=%s minimum=%s",
@@ -302,9 +397,10 @@ class CompanyNewsAISummaryCollector:
             structured_output = self.ai_client.extract_json_output(raw_model_response)
             validated_output = self._validate_model_output(structured_output)
 
+            existing_summary = self._summary_exists(normalized_symbol, summary_analysis_date)
             params = self._build_insert_params(
                 symbol=normalized_symbol,
-                analysis_date=date.today(),
+                analysis_date=summary_analysis_date,
                 source_window_label=source_window_label,
                 source_articles=usable_articles,
                 structured_output=validated_output,
@@ -312,8 +408,11 @@ class CompanyNewsAISummaryCollector:
             )
             self.persist_summary(params)
             logger.info(
-                "Saved company news AI summary: symbol=%s window=%s articles=%s",
+                "Upserted company news AI summary: symbol=%s analysis_date=%s mode=%s action=%s window=%s articles=%s",
                 normalized_symbol,
+                summary_analysis_date,
+                analysis_date_mode,
+                "updated" if existing_summary else "inserted",
                 source_window_label,
                 len(usable_articles),
             )
@@ -323,18 +422,36 @@ class CompanyNewsAISummaryCollector:
             return 0
 
 
-def run_company_news_ai_summary_once(symbol: str = "AAPL", limit: int = 10) -> int:
+def run_company_news_ai_summary_once(
+    symbol: str = "AAPL",
+    limit: int = 10,
+    analysis_date: Optional[date] = None,
+) -> int:
     collector = CompanyNewsAISummaryCollector()
-    return collector.collect_summary(symbol=symbol, limit=limit)
+    return collector.collect_summary(
+        symbol=symbol,
+        limit=limit,
+        analysis_date=analysis_date,
+    )
 
 
 def main():
     parser = argparse.ArgumentParser(description="Generate and store latest company news AI summary")
     parser.add_argument("--symbol", default="AAPL", help="Stock symbol, default: AAPL")
     parser.add_argument("--limit", type=int, default=10, help="Max recent news rows to analyze, default: 10")
+    parser.add_argument(
+        "--analysis-date",
+        type=CompanyNewsAISummaryCollector._parse_analysis_date,
+        default=None,
+        help="Optional summary analysis date in YYYY-MM-DD format",
+    )
     args = parser.parse_args()
 
-    rows = run_company_news_ai_summary_once(symbol=args.symbol, limit=args.limit)
+    rows = run_company_news_ai_summary_once(
+        symbol=args.symbol,
+        limit=args.limit,
+        analysis_date=args.analysis_date,
+    )
     print(f"Company news AI summary complete. Affected rows: {rows}")
 
 
