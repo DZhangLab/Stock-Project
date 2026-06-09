@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 class EarningsCommentaryCollector:
     SOURCE = "ALPHA_VANTAGE"
     REQUEST_DELAY_SECONDS = 1.3
+    PERIOD_RE = re.compile(r"^\d{4}Q[1-4]$")
 
     MANAGEMENT_KEYWORDS = [
         "ceo",
@@ -109,6 +110,15 @@ class EarningsCommentaryCollector:
         quarter = ((fiscal_date.month - 1) // 3) + 1
         return f"{fiscal_date.year}Q{quarter}"
 
+    @classmethod
+    def _normalize_period_label(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip().upper()
+        if normalized.startswith("FY"):
+            normalized = normalized[2:]
+        return normalized if cls.PERIOD_RE.fullmatch(normalized) else None
+
     @staticmethod
     def _latest_earnings_row(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         rows = payload.get("quarterlyEarnings", [])
@@ -127,6 +137,41 @@ class EarningsCommentaryCollector:
         valid = [r for r in rows if isinstance(r, dict)]
         valid.sort(key=lambda r: str(r.get("fiscalDateEnding", "")), reverse=True)
         return valid[:n]
+
+    @classmethod
+    def _select_earnings_rows(
+        cls,
+        payload: Dict[str, Any],
+        max_quarters: int = 4,
+        start_period: Optional[str] = None,
+        end_period: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return recent rows by default, or all rows in an inclusive period range."""
+        if start_period is None and end_period is None:
+            return cls._recent_earnings_rows(payload, max_quarters)
+
+        normalized_start = cls._normalize_period_label(start_period)
+        normalized_end = cls._normalize_period_label(end_period)
+        rows = payload.get("quarterlyEarnings", [])
+        if not isinstance(rows, list):
+            return []
+
+        selected: List[Dict[str, Any]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            fiscal_date = cls._parse_date(row.get("fiscalDateEnding"))
+            if fiscal_date is None:
+                continue
+            period = cls._derive_period_label(fiscal_date)
+            if normalized_start and period < normalized_start:
+                continue
+            if normalized_end and period > normalized_end:
+                continue
+            selected.append(row)
+
+        selected.sort(key=lambda row: str(row.get("fiscalDateEnding", "")), reverse=True)
+        return selected
 
     @staticmethod
     def _extract_transcript_text(payload: Dict[str, Any]) -> str:
@@ -407,8 +452,13 @@ class EarningsCommentaryCollector:
             return 0
 
 
-    def collect_recent_commentary(self, max_quarters: int = 4) -> int:
-        """Fetch and persist commentary for the most recent *max_quarters* quarters."""
+    def collect_recent_commentary(
+        self,
+        max_quarters: int = 4,
+        start_period: Optional[str] = None,
+        end_period: Optional[str] = None,
+    ) -> int:
+        """Fetch recent commentary, or commentary within an inclusive period range."""
         if not self.ensure_table():
             logger.error("Failed to ensure earnings_call_summary table")
             return 0
@@ -419,7 +469,12 @@ class EarningsCommentaryCollector:
             logger.error("Error fetching earnings data: %s", e)
             return 0
 
-        rows = self._recent_earnings_rows(earnings_payload, max_quarters)
+        rows = self._select_earnings_rows(
+            earnings_payload,
+            max_quarters=max_quarters,
+            start_period=start_period,
+            end_period=end_period,
+        )
         if not rows:
             logger.warning("No quarterly earnings rows found for %s", self.symbol)
             return 0
@@ -481,9 +536,16 @@ class EarningsCommentaryCollector:
 
 
 
-def run_earnings_commentary_once(symbol: str = "AAPL") -> int:
+def run_earnings_commentary_once(
+    symbol: str = "AAPL",
+    start_period: Optional[str] = None,
+    end_period: Optional[str] = None,
+) -> int:
     collector = EarningsCommentaryCollector(symbol=symbol)
-    return collector.collect_recent_commentary()
+    return collector.collect_recent_commentary(
+        start_period=start_period,
+        end_period=end_period,
+    )
 
 
 def main():
@@ -491,8 +553,34 @@ def main():
         description="Collect earnings call transcripts and store management summaries"
     )
     parser.add_argument("--symbol", default="AAPL", help="Stock symbol, default: AAPL")
+    parser.add_argument(
+        "--start-period",
+        help="Optional inclusive lower fiscal period bound, e.g. 2024Q1.",
+    )
+    parser.add_argument(
+        "--end-period",
+        help="Optional inclusive upper fiscal period bound, e.g. 2024Q4.",
+    )
     args = parser.parse_args()
-    rows = run_earnings_commentary_once(symbol=args.symbol)
+
+    normalized_start = EarningsCommentaryCollector._normalize_period_label(args.start_period)
+    normalized_end = EarningsCommentaryCollector._normalize_period_label(args.end_period)
+    if args.start_period and normalized_start is None:
+        parser.error(
+            f"--start-period must be YYYYQn, optionally prefixed with FY; got {args.start_period!r}"
+        )
+    if args.end_period and normalized_end is None:
+        parser.error(
+            f"--end-period must be YYYYQn, optionally prefixed with FY; got {args.end_period!r}"
+        )
+    if normalized_start and normalized_end and normalized_start > normalized_end:
+        parser.error("--start-period must not be later than --end-period")
+
+    rows = run_earnings_commentary_once(
+        symbol=args.symbol,
+        start_period=normalized_start,
+        end_period=normalized_end,
+    )
     print(f"{args.symbol} earnings commentary ingestion complete. Affected rows: {rows}")
 
 

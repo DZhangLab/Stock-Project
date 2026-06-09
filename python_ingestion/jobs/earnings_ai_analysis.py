@@ -401,8 +401,13 @@ class EarningsAIAnalysisCollector:
         )
         return True
 
-    def collect_recent_analyses(self, max_quarters: int = 4) -> int:
-        """Fetch and persist AI analysis for the most recent *max_quarters* quarters."""
+    def collect_recent_analyses(
+        self,
+        max_quarters: int = 4,
+        start_period: Optional[str] = None,
+        end_period: Optional[str] = None,
+    ) -> int:
+        """Fetch recent analyses, or analyses within an inclusive period range."""
         if not self.ensure_table():
             logger.error("Failed to ensure earnings_ai_analysis table")
             return 0
@@ -413,7 +418,12 @@ class EarningsAIAnalysisCollector:
             logger.error("Error fetching earnings data: %s", e)
             return 0
 
-        rows = EarningsCommentaryCollector._recent_earnings_rows(earnings_payload, max_quarters)
+        rows = EarningsCommentaryCollector._select_earnings_rows(
+            earnings_payload,
+            max_quarters=max_quarters,
+            start_period=start_period,
+            end_period=end_period,
+        )
         if not rows:
             logger.warning("No quarterly earnings rows found for %s", self.symbol)
             return 0
@@ -448,9 +458,16 @@ class EarningsAIAnalysisCollector:
         return saved
 
 
-def run_earnings_ai_analysis_once(symbol: str = "AAPL") -> int:
+def run_earnings_ai_analysis_once(
+    symbol: str = "AAPL",
+    start_period: Optional[str] = None,
+    end_period: Optional[str] = None,
+) -> int:
     collector = EarningsAIAnalysisCollector(symbol=symbol)
-    return collector.collect_recent_analyses()
+    return collector.collect_recent_analyses(
+        start_period=start_period,
+        end_period=end_period,
+    )
 
 
 def main():
@@ -458,8 +475,34 @@ def main():
         description="Collect earnings call transcripts and store AI earnings analyses"
     )
     parser.add_argument("--symbol", default="AAPL", help="Stock symbol, default: AAPL")
+    parser.add_argument(
+        "--start-period",
+        help="Optional inclusive lower fiscal period bound, e.g. 2024Q1.",
+    )
+    parser.add_argument(
+        "--end-period",
+        help="Optional inclusive upper fiscal period bound, e.g. 2024Q4.",
+    )
     args = parser.parse_args()
-    rows = run_earnings_ai_analysis_once(symbol=args.symbol)
+
+    normalized_start = EarningsCommentaryCollector._normalize_period_label(args.start_period)
+    normalized_end = EarningsCommentaryCollector._normalize_period_label(args.end_period)
+    if args.start_period and normalized_start is None:
+        parser.error(
+            f"--start-period must be YYYYQn, optionally prefixed with FY; got {args.start_period!r}"
+        )
+    if args.end_period and normalized_end is None:
+        parser.error(
+            f"--end-period must be YYYYQn, optionally prefixed with FY; got {args.end_period!r}"
+        )
+    if normalized_start and normalized_end and normalized_start > normalized_end:
+        parser.error("--start-period must not be later than --end-period")
+
+    rows = run_earnings_ai_analysis_once(
+        symbol=args.symbol,
+        start_period=normalized_start,
+        end_period=normalized_end,
+    )
     print(f"{args.symbol} earnings AI analysis complete. Affected rows: {rows}")
 
 
