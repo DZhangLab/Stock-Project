@@ -106,6 +106,7 @@ public class EarningsEventController {
         response.put("car20d", row.getCar20d());
         response.put("surprisePctAtEvent", row.getSurprisePctAtEvent());
         response.put("aiOverallToneAtEvent", row.getAiOverallToneAtEvent());
+        response.put("aiToneIndex", row.getAiToneIndex());
         response.put("qualityFlag", row.getQualityFlag());
         response.put("exclusionReason", row.getExclusionReason());
         response.put("computedAt", row.getComputedAt() == null ? null : row.getComputedAt().toString());

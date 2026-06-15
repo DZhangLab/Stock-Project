@@ -65,6 +65,9 @@ public class EarningsEventOutcome {
     @Column(name = "ai_overall_tone_at_event")
     private String aiOverallToneAtEvent;
 
+    @Transient
+    private BigDecimal aiToneIndex;
+
     @Column(name = "quality_flag")
     private String qualityFlag;
 
@@ -216,6 +219,14 @@ public class EarningsEventOutcome {
 
     public void setAiOverallToneAtEvent(String aiOverallToneAtEvent) {
         this.aiOverallToneAtEvent = aiOverallToneAtEvent;
+    }
+
+    public BigDecimal getAiToneIndex() {
+        return aiToneIndex;
+    }
+
+    public void setAiToneIndex(BigDecimal aiToneIndex) {
+        this.aiToneIndex = aiToneIndex;
     }
 
     public String getQualityFlag() {

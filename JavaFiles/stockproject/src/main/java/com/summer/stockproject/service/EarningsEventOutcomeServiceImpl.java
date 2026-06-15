@@ -1,6 +1,7 @@
 package com.summer.stockproject.service;
 
 import com.summer.stockproject.dao.EarningsEventOutcomeRepository;
+import com.summer.stockproject.dao.EarningsToneIndexProjection;
 import com.summer.stockproject.entity.EarningsEventOutcome;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -37,7 +38,11 @@ public class EarningsEventOutcomeServiceImpl implements EarningsEventOutcomeServ
             return Collections.emptyList();
         }
         List<EarningsEventOutcome> rows = repository.findBySymbolOrderByEventDateDesc(normalizedSymbol);
-        return rows == null ? Collections.emptyList() : rows;
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyList();
+        }
+        attachToneIndexes(normalizedSymbol, rows);
+        return rows;
     }
 
     @Override
@@ -47,10 +52,14 @@ public class EarningsEventOutcomeServiceImpl implements EarningsEventOutcomeServ
         if (normalizedSymbol.isEmpty() || normalizedPeriod.isEmpty()) {
             return null;
         }
-        return repository.findTopBySymbolAndNormalizedFiscalPeriodLabelOrderByEventDateDesc(
+        EarningsEventOutcome row = repository.findTopBySymbolAndNormalizedFiscalPeriodLabelOrderByEventDateDesc(
                 normalizedSymbol,
                 normalizedPeriod
         );
+        if (row != null) {
+            attachToneIndexes(normalizedSymbol, Collections.singletonList(row));
+        }
+        return row;
     }
 
     @Override
@@ -129,6 +138,32 @@ public class EarningsEventOutcomeServiceImpl implements EarningsEventOutcomeServ
 
     private String normalizeSymbol(String symbol) {
         return symbol == null ? "" : symbol.trim().toUpperCase();
+    }
+
+    private void attachToneIndexes(String symbol, List<EarningsEventOutcome> rows) {
+        List<EarningsToneIndexProjection> toneRows = repository.findToneIndexesBySymbol(symbol);
+        if (toneRows == null || toneRows.isEmpty()) {
+            return;
+        }
+
+        Map<String, BigDecimal> toneIndexByPeriod = new LinkedHashMap<String, BigDecimal>();
+        for (EarningsToneIndexProjection toneRow : toneRows) {
+            if (toneRow == null) {
+                continue;
+            }
+            String period = normalizePeriod(toneRow.getNormalizedFiscalPeriodLabel());
+            if (!period.isEmpty()) {
+                toneIndexByPeriod.put(period, toneRow.getAiToneIndex());
+            }
+        }
+
+        for (EarningsEventOutcome row : rows) {
+            if (row == null) {
+                continue;
+            }
+            String period = normalizePeriod(row.getNormalizedFiscalPeriodLabel());
+            row.setAiToneIndex(toneIndexByPeriod.get(period));
+        }
     }
 
     private String normalizePeriod(String period) {
